@@ -40,12 +40,22 @@ export default function Index() {
   // Scraping State
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [subjectsToFetch, setSubjectsToFetch] = useState<any[]>([]);
   const [currentSubjectIndex, setCurrentSubjectIndex] = useState(-1);
   const [tempAcademicData, setTempAcademicData] = useState<Subject[]>([]);
   
   const webViewRef = useRef<WebView>(null);
+  const watchdogRef = useRef<any>(null);
   const [webViewUrl, setWebViewUrl] = useState('https://parents.nie.ac.in/index.php');
+
+  const resetWatchdog = () => {
+    if (watchdogRef.current) clearTimeout(watchdogRef.current);
+    watchdogRef.current = setTimeout(() => {
+      setSyncStatus('error');
+      setSyncError('Sync timed out. Please check your internet or USN/DOB.');
+    }, 45000); // 45s global timeout
+  };
 
   useEffect(() => {
     if (!loading && !profile) {
@@ -57,17 +67,23 @@ export default function Index() {
 
   const startSync = () => {
     if (!profile) return;
+    setSyncError(null);
     setSyncStatus('logging_in');
     setSyncProgress(0.1);
     setTempAcademicData([]);
     setWebViewUrl('https://parents.nie.ac.in/index.php');
+    resetWatchdog();
   };
 
   const onWebViewMessage = (event: WebViewMessageEvent) => {
+    resetWatchdog();
     try {
       const { type, data } = JSON.parse(event.nativeEvent.data);
       
-      if (type === 'SUBJECT_LIST') {
+      if (type === 'ERROR') {
+        setSyncStatus('error');
+        setSyncError(data);
+      } else if (type === 'SUBJECT_LIST') {
         setSubjectsToFetch(data);
         setSyncStatus('fetching_details');
         setSyncProgress(0.3);
@@ -106,17 +122,21 @@ export default function Index() {
   };
 
   const onWebViewLoadEnd = () => {
-    if (syncStatus === 'logging_in') {
-      webViewRef.current?.injectJavaScript(ScraperScripts.login(profile!.usn, profile!.dob));
-      setSyncStatus('fetching_list');
-    } else if (syncStatus === 'fetching_list') {
-      webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
-    } else if (syncStatus === 'fetching_details') {
-      webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectDetails);
-    }
+    // Add a 2s delay after page load to let portal JS finish rendering
+    setTimeout(() => {
+      if (syncStatus === 'logging_in') {
+        webViewRef.current?.injectJavaScript(ScraperScripts.login(profile!.usn, profile!.dob));
+        setSyncStatus('fetching_list');
+      } else if (syncStatus === 'fetching_list') {
+        webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
+      } else if (syncStatus === 'fetching_details') {
+        webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectDetails);
+      }
+    }, 2500);
   };
 
   const finishSync = async (data: Subject[]) => {
+    if (watchdogRef.current) clearTimeout(watchdogRef.current);
     setSyncStatus('finishing');
     setSyncProgress(1);
     
@@ -160,16 +180,31 @@ export default function Index() {
       {syncStatus !== 'idle' && (
         <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.syncOverlay}>
           <View style={styles.syncCard}>
-            <ActivityIndicator size="large" color="#3b82f6" />
-            <Text style={styles.syncTitle}>Syncing Portal...</Text>
-            <Text style={styles.syncSubtitle}>
-              {syncStatus === 'fetching_details' 
-                ? `Scraping Subject ${currentSubjectIndex + 1}/${subjectsToFetch.length}`
-                : 'Logging in to your student accounts...'}
-            </Text>
-            <View style={styles.syncProgressTrack}>
-              <View style={[styles.syncProgressBar, { width: `${syncProgress * 100}%` }]} />
-            </View>
+            {syncStatus === 'error' ? (
+              <>
+                <Ionicons name="alert-circle" size={48} color="#ef4444" />
+                <Text style={styles.syncTitle}>Sync Failed</Text>
+                <Text style={styles.syncSubtitle}>{syncError || 'Unknown error occurred'}</Text>
+                <TouchableOpacity style={styles.primaryBtn} onPress={() => setSyncStatus('idle')}>
+                  <Text style={styles.primaryBtnText}>Close</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text style={styles.syncTitle}>
+                  {syncStatus === 'logging_in' ? 'Connecting...' : 'Syncing Portal...'}
+                </Text>
+                <Text style={styles.syncSubtitle}>
+                  {syncStatus === 'fetching_details' 
+                    ? `Scraping Subject ${currentSubjectIndex + 1}/${subjectsToFetch.length}`
+                    : 'Logging in to your student accounts...'}
+                </Text>
+                <View style={styles.syncProgressTrack}>
+                  <View style={[styles.syncProgressBar, { width: `${syncProgress * 100}%` }]} />
+                </View>
+              </>
+            )}
           </View>
         </Animated.View>
       )}

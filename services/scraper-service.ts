@@ -37,6 +37,18 @@ export const ScraperScripts = {
    */
   scrapeSubjectList: `
     (function() {
+      // Logic to check if we are actually on the dashboard
+      const isDashboard = document.body.innerText.includes('Course Code') || 
+                        document.querySelector('table.dash_even_row');
+      
+      if (!isDashboard) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'ERROR',
+          data: 'Not on dashboard page'
+        }));
+        return;
+      }
+
       const rows = document.querySelectorAll('table.dash_even_row tbody tr');
       const subjects = [];
       
@@ -66,10 +78,19 @@ export const ScraperScripts = {
    */
   scrapeSubjectDetails: `
     (function() {
+      const cieTable = document.querySelector('.cn-cie-stat-table');
+      if (!cieTable) {
+        // Retry or report error if the table hasn't loaded yet
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'RETRY_DETAILS',
+          data: 'Details table not found'
+        }));
+        return;
+      }
+
       const cieText = document.querySelector('.cn-cie-stat-table td:nth-child(7)')?.innerText || "";
       const attText = document.querySelector('.cn-cie-stat-table td:nth-child(8)')?.innerText || "";
       
-      // Extract individual marks (T1, T2, etc)
       const t1 = document.querySelector('.cn-cie-stat-table td:nth-child(1)')?.innerText.split(':')[1]?.trim() || "-";
       const t2 = document.querySelector('.cn-cie-stat-table td:nth-child(2)')?.innerText.split(':')[1]?.trim() || "-";
       const q1 = document.querySelector('.cn-cie-stat-table td:nth-child(3)')?.innerText.split(':')[1]?.trim() || "-";
