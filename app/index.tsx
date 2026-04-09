@@ -1,188 +1,328 @@
-import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Dimensions,
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  Dimensions, 
+  TouchableOpacity, 
   ActivityIndicator,
+  Alert,
+  TextInput,
+  Platform
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-  FadeIn,
+import { WebView, WebViewMessageEvent } from 'react-native-webview';
+import Animated, { 
+  FadeIn, 
+  FadeOut, 
   FadeInDown,
-  FadeInUp,
-  Layout,
-  useAnimatedStyle,
-  withTiming,
-  withSpring,
-  useSharedValue,
 } from 'react-native-reanimated';
-import { useStorage, UserProfile } from '@/hooks/use-storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useStorage, AcademicData, Subject } from '@/hooks/use-storage';
+import { ScraperScripts } from '@/services/scraper-service';
 import { StatusBar } from 'expo-status-bar';
 
-const { width, height } = Dimensions.get('window');
+// Components
+import { AttendanceTab } from '@/components/attendance-tab';
+import { CieTab } from '@/components/cie-tab';
+import { SettingsTab } from '@/components/settings-tab';
 
-/**
- * Bunk Safe - Main Entry Point
- * Handles Intro, Onboarding, and Dashboard logic.
- */
+const { width } = Dimensions.get('window');
+
+type Tab = 'attendance' | 'cie' | 'settings';
+type SyncStatus = 'idle' | 'logging_in' | 'fetching_list' | 'fetching_details' | 'finishing' | 'error';
+
 export default function Index() {
-  const { profile, loading, saveProfile } = useStorage();
-  const [showIntro, setShowIntro] = useState(true);
-  const [formData, setFormData] = useState<UserProfile>({
-    name: '',
-    usn: '',
-    dob: '',
-  });
+  const { profile, loading, saveProfile, clearProfile } = useStorage();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>('attendance');
+  
+  // Scraping State
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [syncProgress, setSyncProgress] = useState(0);
+  const [subjectsToFetch, setSubjectsToFetch] = useState<any[]>([]);
+  const [currentSubjectIndex, setCurrentSubjectIndex] = useState(-1);
+  const [tempAcademicData, setTempAcademicData] = useState<Subject[]>([]);
+  
+  const webViewRef = useRef<WebView>(null);
+  const [webViewUrl, setWebViewUrl] = useState('https://parents.nie.ac.in/index.php');
 
-  // Intro timeout
   useEffect(() => {
-    if (!loading && profile) {
-      // If profile exists, show intro for a moment then go to dashboard
-      const timer = setTimeout(() => setShowIntro(false), 2000);
-      return () => clearTimeout(timer);
+    if (!loading && !profile) {
+      setShowOnboarding(true);
     }
   }, [loading, profile]);
 
-  const handleRegister = async () => {
-    if (formData.name && formData.usn && formData.dob) {
-      await saveProfile(formData);
-      setShowIntro(false);
+  // --- SCRAPER ORCHESTRATION ---
+
+  const startSync = () => {
+    if (!profile) return;
+    setSyncStatus('logging_in');
+    setSyncProgress(0.1);
+    setTempAcademicData([]);
+    setWebViewUrl('https://parents.nie.ac.in/index.php');
+  };
+
+  const onWebViewMessage = (event: WebViewMessageEvent) => {
+    try {
+      const { type, data } = JSON.parse(event.nativeEvent.data);
+      
+      if (type === 'SUBJECT_LIST') {
+        setSubjectsToFetch(data);
+        setSyncStatus('fetching_details');
+        setSyncProgress(0.3);
+        if (data.length > 0) {
+          setCurrentSubjectIndex(0);
+          setWebViewUrl(data[0].cieLink);
+        } else {
+          finishSync([]);
+        }
+      } else if (type === 'SUBJECT_DETAILS') {
+        const subject = subjectsToFetch[currentSubjectIndex];
+        const newDetails: Subject = {
+          code: subject.code,
+          name: subject.name,
+          attendance: data.attendance,
+          cie: data.cie
+        };
+        
+        const updatedTemp = [...tempAcademicData, newDetails];
+        setTempAcademicData(updatedTemp);
+        
+        const nextIndex = currentSubjectIndex + 1;
+        const progress = 0.3 + (nextIndex / subjectsToFetch.length) * 0.6;
+        setSyncProgress(progress);
+
+        if (nextIndex < subjectsToFetch.length) {
+          setCurrentSubjectIndex(nextIndex);
+          setWebViewUrl(subjectsToFetch[nextIndex].cieLink);
+        } else {
+          finishSync(updatedTemp);
+        }
+      }
+    } catch (e) {
+      console.error('Scraper Message Error:', e);
     }
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: '#000' }]}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
+  const onWebViewLoadEnd = () => {
+    if (syncStatus === 'logging_in') {
+      webViewRef.current?.injectJavaScript(ScraperScripts.login(profile!.usn, profile!.dob));
+      setSyncStatus('fetching_list');
+    } else if (syncStatus === 'fetching_list') {
+      webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
+    } else if (syncStatus === 'fetching_details') {
+      webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectDetails);
+    }
+  };
+
+  const finishSync = async (data: Subject[]) => {
+    setSyncStatus('finishing');
+    setSyncProgress(1);
+    
+    if (profile) {
+      await saveProfile({
+        ...profile,
+        academicData: {
+          lastUpdated: new Date().toISOString(),
+          subjects: data
+        }
+      });
+    }
+    
+    setTimeout(() => setSyncStatus('idle'), 1000);
+  };
+
+  if (loading) return null;
+
+  if (showOnboarding) {
+    return <Onboarding onComplete={() => setShowOnboarding(false)} saveProfile={saveProfile} />;
   }
 
-  // --- 1. Dashboard State ---
-  if (profile && !showIntro) {
-    return (
-      <View style={styles.container}>
-        <StatusBar style="light" />
-        <LinearGradient
-          colors={['#0f172a', '#020617']}
-          style={StyleSheet.absoluteFill}
-        />
-        <Animated.View entering={FadeInDown.duration(1000)} style={styles.dashboardContent}>
-          <Text style={styles.greetingTitle}>Hello,</Text>
-          <Text style={styles.profileName}>{profile.name}</Text>
-          <View style={styles.statusCard}>
-            <Text style={styles.statusText}>Welcome back to Bunk Safe.</Text>
-          </View>
-        </Animated.View>
-      </View>
-    );
-  }
-
-  // --- 2. Intro State ---
-  if (showIntro && (profile || !profile)) {
-    return (
-      <View style={styles.container}>
-        <StatusBar style="light" />
-        <LinearGradient
-          colors={['#1e1b4b', '#000000']}
-          style={StyleSheet.absoluteFill}
-        />
-        <Animated.View entering={FadeIn.duration(1500)} style={styles.introContent}>
-          <Animated.Text entering={FadeInDown.delay(300).duration(1000)} style={styles.logoText}>
-            Bunk Safe
-          </Animated.Text>
-          <Animated.Text entering={FadeInUp.delay(800).duration(1000)} style={styles.taglineText}>
-            Manage your attendance with ease.
-          </Animated.Text>
-          {!profile && (
-            <Animated.View entering={FadeIn.delay(2000)}>
-              <TouchableOpacity
-                style={styles.getStartedBtn}
-                onPress={() => setShowIntro(false)}
-              >
-                <LinearGradient
-                  colors={['#4f46e5', '#3b82f6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.gradientBtn}
-                >
-                  <Text style={styles.getStartedText}>Get Started</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-        </Animated.View>
-      </View>
-    );
-  }
-
-  // --- 3. Onboarding State ---
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
-      <LinearGradient
-        colors={['#020617', '#0f172a']}
-        style={StyleSheet.absoluteFill}
-      />
+      <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFill} />
       
-      <Animated.View 
-        entering={FadeInUp.duration(600)} 
-        style={styles.onboardingContent}
-      >
-        <Text style={styles.onboardingTitle}>Create Profile</Text>
-        <Text style={styles.onboardingSubtitle}>Secure your academic journey.</Text>
+      {/* Hidden Scraper */}
+      <View style={{ height: 0, width: 0, opacity: 0, position: 'absolute' }}>
+        <WebView 
+          ref={webViewRef}
+          source={{ uri: webViewUrl }}
+          onMessage={onWebViewMessage}
+          onLoadEnd={onWebViewLoadEnd}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+        />
+      </View>
 
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="John Doe"
-              placeholderTextColor="#64748b"
-              value={formData.name}
-              onChangeText={(t) => setFormData(p => ({ ...p, name: t }))}
-            />
+      {/* Syncing Overlay */}
+      {syncStatus !== 'idle' && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.syncOverlay}>
+          <View style={styles.syncCard}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+            <Text style={styles.syncTitle}>Syncing Portal...</Text>
+            <Text style={styles.syncSubtitle}>
+              {syncStatus === 'fetching_details' 
+                ? `Scraping Subject ${currentSubjectIndex + 1}/${subjectsToFetch.length}`
+                : 'Logging in to your student accounts...'}
+            </Text>
+            <View style={styles.syncProgressTrack}>
+              <View style={[styles.syncProgressBar, { width: `${syncProgress * 100}%` }]} />
+            </View>
           </View>
+        </Animated.View>
+      )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>USN (Username)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="4NI23IS001"
-              placeholderTextColor="#64748b"
-              autoCapitalize="characters"
-              value={formData.usn}
-              onChangeText={(t) => setFormData(p => ({ ...p, usn: t }))}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Date of Birth (Password)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#64748b"
-              value={formData.dob}
-              onChangeText={(t) => setFormData(p => ({ ...p, dob: t }))}
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.submitBtn}
-            onPress={handleRegister}
-          >
-            <LinearGradient
-              colors={['#3b82f6', '#2563eb']}
-              style={styles.gradientBtn}
-            >
-              <Text style={styles.submitText}>Save & Enter</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+      {/* Dashboard Top bar */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>Hey, {profile?.name.split(' ')[0]}</Text>
+          <Text style={styles.lastUpdate}>
+            {profile?.academicData 
+              ? `Last synced: ${new Date(profile.academicData.lastUpdated).toLocaleTimeString()}`
+              : 'Sync required to view data'}
+          </Text>
         </View>
-      </Animated.View>
+        <TouchableOpacity 
+          style={[styles.syncBtn, syncStatus !== 'idle' && styles.syncBtnDisabled]} 
+          onPress={startSync} 
+          disabled={syncStatus !== 'idle'}
+        >
+          <Ionicons name="refresh" size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Page Content */}
+      <View style={styles.content}>
+        {activeTab === 'attendance' && (
+           profile?.academicData ? (
+             <AttendanceTab subjects={profile.academicData.subjects} />
+           ) : (
+             <EmptyState onSync={startSync} />
+           )
+        )}
+        {activeTab === 'cie' && (
+           profile?.academicData ? (
+             <CieTab subjects={profile.academicData.subjects} />
+           ) : (
+             <EmptyState onSync={startSync} />
+           )
+        )}
+        {activeTab === 'settings' && (
+          <SettingsTab 
+            profile={profile!} 
+            onUpdate={saveProfile} 
+            onClear={clearProfile} 
+          />
+        )}
+      </View>
+
+      {/* Bottom Tab Bar */}
+      <View style={styles.bottomNav}>
+        <NavButton 
+          active={activeTab === 'attendance'} 
+          icon="stats-chart" 
+          label="Attendance" 
+          onPress={() => setActiveTab('attendance')} 
+        />
+        <NavButton 
+          active={activeTab === 'cie'} 
+          icon="document-text" 
+          label="CIE" 
+          onPress={() => setActiveTab('cie')} 
+        />
+        <NavButton 
+          active={activeTab === 'settings'} 
+          icon="settings" 
+          label="Settings" 
+          onPress={() => setActiveTab('settings')} 
+        />
+      </View>
+    </View>
+  );
+}
+
+function NavButton({ active, icon, label, onPress }: any) {
+  return (
+    <TouchableOpacity onPress={onPress} style={styles.navBtn}>
+      <Ionicons name={active ? icon : `${icon}-outline`} size={22} color={active ? '#3b82f6' : '#64748b'} />
+      <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function EmptyState({ onSync }: { onSync: () => void }) {
+  return (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="cloud-download-outline" size={64} color="#1e293b" />
+      <Text style={styles.emptyTitle}>No Data Found</Text>
+      <Text style={styles.emptySubtitle}>Sync with the student portal to fetch your academic records.</Text>
+      <TouchableOpacity style={styles.emptySyncBtn} onPress={onSync}>
+        <Text style={styles.emptySyncText}>Sync Now</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function Onboarding({ onComplete, saveProfile }: any) {
+  const [step, setStep] = useState(1);
+  const [name, setName] = useState('');
+  const [usn, setUsn] = useState('');
+  const [dob, setDob] = useState('');
+
+  const handleFinish = async () => {
+    if (!name || !usn || !dob) {
+      Alert.alert('Missing Info', 'Please fill all fields');
+      return;
+    }
+    await saveProfile({ name, usn, dob });
+    onComplete();
+  };
+
+  return (
+    <View style={styles.container}>
+      <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFill} />
+      {step === 1 ? (
+        <Animated.View entering={FadeIn} style={styles.onboardStep}>
+           <Text style={styles.onboardHero}>Bunk{'\n'}Safe.</Text>
+           <Text style={styles.onboardTag}>Never miss a safe attendance threshold again.</Text>
+           <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep(2)}>
+             <Text style={styles.primaryBtnText}>Get Started</Text>
+           </TouchableOpacity>
+        </Animated.View>
+      ) : (
+        <Animated.View entering={FadeInDown} style={styles.onboardStep}>
+          <Text style={styles.formTitle}>Profile Setup</Text>
+          <View style={styles.form}>
+             <TextInput 
+               placeholder="Full Name" 
+               placeholderTextColor="#64748b" 
+               style={styles.input} 
+               value={name}
+               onChangeText={setName}
+             />
+             <TextInput 
+               placeholder="USN" 
+               placeholderTextColor="#64748b" 
+               style={styles.input} 
+               autoCapitalize="characters"
+               value={usn}
+               onChangeText={setUsn}
+             />
+             <TextInput 
+               placeholder="DOB (YYYY-MM-DD)" 
+               placeholderTextColor="#64748b" 
+               style={styles.input} 
+               value={dob}
+               onChangeText={setDob}
+             />
+             <TouchableOpacity style={styles.primaryBtn} onPress={handleFinish}>
+               <Text style={styles.primaryBtnText}>Access Dashboard</Text>
+             </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -190,113 +330,201 @@ export default function Index() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: '#0f172a',
+  },
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 24,
   },
-  introContent: {
-    alignItems: 'center',
-    padding: 20,
-  },
-  logoText: {
-    fontSize: 56,
-    fontWeight: '900',
-    color: '#fff',
-    letterSpacing: -1,
-  },
-  taglineText: {
-    fontSize: 18,
-    color: '#94a3b8',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  getStartedBtn: {
-    marginTop: 60,
-    width: width * 0.6,
-    borderRadius: 30,
-    overflow: 'hidden',
-  },
-  getStartedText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  onboardingContent: {
-    width: '100%',
-    paddingHorizontal: 30,
-  },
-  onboardingTitle: {
-    fontSize: 32,
+  greeting: {
+    fontSize: 24,
     fontWeight: '800',
     color: '#fff',
-    marginBottom: 8,
   },
-  onboardingSubtitle: {
-    fontSize: 16,
+  lastUpdate: {
+    fontSize: 12,
     color: '#64748b',
-    marginBottom: 40,
+    marginTop: 4,
   },
-  form: {
-    gap: 20,
-  },
-  inputGroup: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    color: '#94a3b8',
-    fontWeight: '500',
-    marginLeft: 4,
-  },
-  input: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    color: '#fff',
-    fontSize: 16,
-  },
-  submitBtn: {
-    marginTop: 20,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  gradientBtn: {
-    padding: 18,
+  syncBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
   },
-  submitText: {
-    color: '#fff',
-    fontSize: 18,
+  syncBtnDisabled: {
+    opacity: 0.5,
+  },
+  content: {
+    flex: 1,
+  },
+  bottomNav: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 40 : 20,
+    left: 20,
+    right: 20,
+    height: 70,
+    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+    borderRadius: 35,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  navBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  navLabel: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 4,
     fontWeight: '700',
   },
-  dashboardContent: {
-    padding: 30,
-    width: '100%',
+  navLabelActive: {
+    color: '#3b82f6',
   },
-  greetingTitle: {
-    fontSize: 24,
-    color: '#94a3b8',
-    fontWeight: '500',
-  },
-  profileName: {
-    fontSize: 48,
-    color: '#fff',
-    fontWeight: '900',
-    marginBottom: 30,
-  },
-  statusCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 20,
+  syncOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    zIndex: 1000,
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 24,
+  },
+  syncCard: {
+    width: '100%',
+    backgroundColor: '#1e293b',
+    borderRadius: 28,
+    padding: 32,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
   },
-  statusText: {
-    color: '#94a3b8',
-    fontSize: 16,
-    lineHeight: 24,
+  syncTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    marginTop: 24,
   },
+  syncSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 8,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 20,
+  },
+  syncProgressTrack: {
+    height: 6,
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  syncProgressBar: {
+    height: '100%',
+    backgroundColor: '#3b82f6',
+    borderRadius: 3,
+  },
+  onboardStep: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 40,
+  },
+  onboardHero: {
+    fontSize: 64,
+    fontWeight: '900',
+    color: '#fff',
+    lineHeight: 64,
+    letterSpacing: -2,
+  },
+  onboardTag: {
+    fontSize: 18,
+    color: '#64748b',
+    marginTop: 20,
+    marginBottom: 60,
+    lineHeight: 26,
+  },
+  primaryBtn: {
+    backgroundColor: '#3b82f6',
+    padding: 20,
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  formTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 32,
+  },
+  form: {
+    gap: 16,
+  },
+  input: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 20,
+    color: '#fff',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
+    marginTop: 20,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 20,
+  },
+  emptySyncBtn: {
+    marginTop: 30,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+  },
+  emptySyncText: {
+    color: '#3b82f6',
+    fontWeight: '700',
+  }
 });

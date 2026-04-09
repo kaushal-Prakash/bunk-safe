@@ -3,10 +3,33 @@ import { StorageProvider } from './storage-provider';
 
 const STORAGE_KEY = '@user_profile';
 
+export interface SubjectCie {
+  t1?: string;
+  t2?: string;
+  q1?: string;
+  q2?: string;
+  il1?: string;
+  il2?: string;
+  total: string;
+}
+
+export interface Subject {
+  code: string;
+  name: string;
+  attendance: string;
+  cie: SubjectCie;
+}
+
+export interface AcademicData {
+  lastUpdated: string;
+  subjects: Subject[];
+}
+
 export interface UserProfile {
   name: string;
   usn: string;
   dob: string;
+  academicData?: AcademicData;
 }
 
 /**
