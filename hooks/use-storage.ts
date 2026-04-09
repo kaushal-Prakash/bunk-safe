@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState, useEffect } from 'react';
+import { StorageProvider } from './storage-provider';
 
 const STORAGE_KEY = '@user_profile';
 
@@ -9,6 +9,10 @@ export interface UserProfile {
   dob: string;
 }
 
+/**
+ * Unified storage hook that uses platform-specific providers.
+ * No native imports are done in this file to avoid web-bundling errors.
+ */
 export function useStorage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,7 +23,7 @@ export function useStorage() {
 
   async function loadProfile() {
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      const stored = await StorageProvider.getItem(STORAGE_KEY);
       if (stored) {
         setProfile(JSON.parse(stored));
       }
@@ -32,16 +36,18 @@ export function useStorage() {
 
   async function saveProfile(data: UserProfile) {
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      const stringified = JSON.stringify(data);
+      await StorageProvider.setItem(STORAGE_KEY, stringified);
       setProfile(data);
     } catch (e) {
       console.error('Failed to save profile', e);
+      throw e;
     }
   }
 
   async function clearProfile() {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
+      await StorageProvider.removeItem(STORAGE_KEY);
       setProfile(null);
     } catch (e) {
       console.error('Failed to clear profile', e);
