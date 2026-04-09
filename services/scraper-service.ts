@@ -7,9 +7,29 @@ export const ScraperScripts = {
    * Automates the login form using USN and DOB.
    */
   login: (usn: string, dob: string) => {
-    const [year, month, day] = dob.split('-'); // Assuming YYYY-MM-DD
+    // Handling different DOB formats (YYYY-MM-DD or DD-MM-YYYY)
+    let day = '', month = '', year = '';
+    
+    if (dob.includes('-')) {
+      const parts = dob.split('-');
+      if (parts[0].length === 4) { // YYYY-MM-DD
+        [year, month, day] = parts;
+      } else { // DD-MM-YYYY
+        [day, month, year] = parts;
+      }
+    }
+
+    // Ensure day and month have leading zeros + space for day if portal needs it
+    day = day.padStart(2, '0');
+    month = month.padStart(2, '0');
+
     return `
       (function() {
+        const notify = (msg) => {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
+        };
+
+        notify('Scraper: Starting login for ${usn}');
         const userField = document.querySelector('#username');
         const daySelect = document.querySelector('#dd');
         const monthSelect = document.querySelector('#mm');
@@ -17,16 +37,28 @@ export const ScraperScripts = {
         const submitBtn = document.querySelector('input[type="submit"]');
 
         if (userField && daySelect && monthSelect && yearSelect) {
+          notify('Scraper: Found all form fields');
           userField.value = "${usn}";
-          daySelect.value = "${day} "; // Note the trailing space in the HTML option value
+          
+          // Set dropdowns
+          daySelect.value = "${day} "; // NIE Portal uses "DD " value
+          notify('Scraper: Set Day to ' + daySelect.value);
+          
           monthSelect.value = "${month}";
+          notify('Scraper: Set Month to ' + monthSelect.value);
+          
           yearSelect.value = "${year}";
+          notify('Scraper: Set Year to ' + yearSelect.value);
           
-          // Trigger the page's own logic if needed
-          if (typeof putdate === 'function') putdate();
+          if (typeof putdate === 'function') {
+            notify('Scraper: Triggering putdate()');
+            putdate();
+          }
           
-          // Submit
+          notify('Scraper: Clicking submit button');
           submitBtn.click();
+        } else {
+          notify('Scraper ERROR: Could not find one or more form fields');
         }
       })();
     `;
@@ -37,11 +69,17 @@ export const ScraperScripts = {
    */
   scrapeSubjectList: `
     (function() {
-      // Logic to check if we are actually on the dashboard
+      const notify = (msg) => {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
+      };
+
+      notify('Scraper: Attempting to scrape subject list');
+      
       const isDashboard = document.body.innerText.includes('Course Code') || 
                         document.querySelector('table.dash_even_row');
       
       if (!isDashboard) {
+        notify('Scraper ERROR: Not on dashboard page. Current body text starts with: ' + document.body.innerText.substring(0, 50));
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'ERROR',
           data: 'Not on dashboard page'
@@ -52,7 +90,9 @@ export const ScraperScripts = {
       const rows = document.querySelectorAll('table.dash_even_row tbody tr');
       const subjects = [];
       
-      rows.forEach(row => {
+      notify('Scraper: Found ' + rows.length + ' rows in table');
+
+      rows.forEach((row, i) => {
         const cells = row.querySelectorAll('td');
         if (cells.length >= 5) {
           const code = cells[0].innerText.trim();
@@ -66,6 +106,8 @@ export const ScraperScripts = {
         }
       });
       
+      notify('Scraper: Successfully collected ' + subjects.length + ' subjects');
+
       window.ReactNativeWebView.postMessage(JSON.stringify({
         type: 'SUBJECT_LIST',
         data: subjects
@@ -78,15 +120,21 @@ export const ScraperScripts = {
    */
   scrapeSubjectDetails: `
     (function() {
+      const notify = (msg) => {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
+      };
+
       const cieTable = document.querySelector('.cn-cie-stat-table');
       if (!cieTable) {
-        // Retry or report error if the table hasn't loaded yet
+        notify('Scraper: Details table not found yet, retrying...');
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'RETRY_DETAILS',
           data: 'Details table not found'
         }));
         return;
       }
+
+      notify('Scraper: Found details table, extracting data...');
 
       const cieText = document.querySelector('.cn-cie-stat-table td:nth-child(7)')?.innerText || "";
       const attText = document.querySelector('.cn-cie-stat-table td:nth-child(8)')?.innerText || "";
@@ -100,6 +148,8 @@ export const ScraperScripts = {
 
       const cieValue = cieText.split(':')[1]?.trim() || "0";
       const attValue = attText.split(':')[1]?.trim() || "0%";
+
+      notify('Scraper: Extracted - CIE: ' + cieValue + ', ATT: ' + attValue);
 
       window.ReactNativeWebView.postMessage(JSON.stringify({
         type: 'SUBJECT_DETAILS',

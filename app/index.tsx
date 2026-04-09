@@ -80,6 +80,11 @@ export default function Index() {
     try {
       const { type, data } = JSON.parse(event.nativeEvent.data);
       
+      if (type === 'LOG') {
+        console.log('[WebView Scraper]:', data);
+        return;
+      }
+
       if (type === 'ERROR') {
         setSyncStatus('error');
         setSyncError(data);
