@@ -1,50 +1,68 @@
-# Welcome to your Expo app 👋
+# Bunk Safe 🛡️
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Bunk Safe is a fully private, locally-run React Native mobile application for students to track their Continuous Internal Evaluation (CIE) marks and attendance without compromising their credentials or data.
 
-## Get started
+## Features ✨
 
-1. Install dependencies
+- **100% Private:** Your student credentials (USN & DOB) and academic records never leave your device. All data is stored locally using `AsyncStorage`.
+- **Automated Background Sync:** Uses a headless WebView to authenticate and extract the latest CIE and Attendance records directly from the student portal.
+- **Attendance Tracker:** Visualizes subject attendance with clean, color-coded indicators (Red for below 75% threshold, Green for safe).
+- **CIE Dashboard:** Dynamically extracts and presents T1, T2, Q1, Q2, IL1, IL2, and Total CIE marks across all subjects.
+- **Sleek Onboarding:** A smooth, paginated onboarding experience highlighting the privacy-first approach.
+- **Offline First:** Once synced, you can view your dashboard fully offline.
 
-   ```bash
+## Tech Stack 🛠️
+
+- **Framework:** React Native with Expo
+- **Language:** TypeScript
+- **Scraping:** `react-native-webview` (Injected JavaScript)
+- **Animations:** `react-native-reanimated`
+- **UI Components:** `expo-linear-gradient`, `@expo/vector-icons`
+
+## How It Works ⚙️
+
+1. **Onboarding:** First-time users are introduced to the app features through a sliding carousel, then enter their USN and DOB.
+2. **Local Storage Setup:** These credentials are encrypted (or saved locally strictly on device storage) and linked to a local profile.
+3. **Automated Scraping:** When the user taps the refresh icon:
+   - A hidden `WebView` instance navigates to the portal.
+   - Using injected JavaScript, it automates filling the login form.
+   - It navigates to the dashboard, collects subject detail links, and iterates through each page to extract HTML structures.
+   - `AmCharts` JSON metadata in the source is intercepted directly to retrieve precise assessment values.
+4. **Dashboard Render:** The native UI instantly reflects the updated, locally saved JSON data.
+
+## Installation 🚀
+
+1. **Clone the repository:**
+   \`\`\`bash
+   git clone <your-repo-url>
+   cd bunk-safe
+   \`\`\`
+
+2. **Install dependencies:**
+   \`\`\`bash
    npm install
-   ```
+   \`\`\`
 
-2. Start the app
-
-   ```bash
+3. **Start the Expo server:**
+   \`\`\`bash
    npx expo start
-   ```
+   \`\`\`
 
-In the output, you'll find options to open the app in a
+4. **Run on device/emulator:**
+   - Scan the QR code with the Expo Go app on your phone.
+   - Or press \`a\` to run on Android / \`i\` to run on iOS simulators.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## Security & Privacy 🔒
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+This app is built precisely because many wrapper apps exist that send user credentials to centralized backend servers. With Bunk Safe:
+- There is **no backend server**.
+- The scraping code runs directly on the client via `react-native-webview`.
+- It connects exclusively to the official parent/student portal over HTTPS.
 
-## Get a fresh project
+## Contributing 🤝
 
-When you're ready, run:
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-```bash
-npm run reset-project
-```
+## License 📜
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Distributed under the MIT License. See \`LICENSE\` for more information.

@@ -137,55 +137,95 @@ export const ScraperScripts = {
       // Track retries to avoid infinite loop logging without useful info
       window._detailsRetries = (window._detailsRetries || 0) + 1;
 
-      const cieTable = document.querySelector('.cn-cie-table') || document.querySelector('.cn-cie-stat-table');
-      if (!cieTable) {
+      // The NIE portal often loads the chart JS after some delay, so let's rely on body text or scripts
+      const scripts = Array.from(document.scripts).map(s => s.innerHTML).join('\\n');
+      const pageText = document.body.innerText;
+      
+      const containsData = scripts.includes('var chartData =') || pageText.includes('Attendance');
+      
+      if (!containsData) {
         if (window._detailsRetries > 8) {
-          notify('Scraper ERROR: Gave up finding details table.');
-          const tables = Array.from(document.querySelectorAll('table')).map(t => t.className || 'unnamed-table');
-          notify('Scraper: Found tables on page: ' + JSON.stringify(tables));
-          notify('Scraper: Page text start: ' + document.body.innerText.substring(0, 150).replace(/\\n/g, ' '));
-          
+          notify('Scraper ERROR: Gave up finding CIE/Attendance data.');
           window.ReactNativeWebView.postMessage(JSON.stringify({
             type: 'ERROR',
-            data: 'Could not find the CIE/Attendance details table on the page.'
+            data: 'Could not find the CIE/Attendance details on the page.'
           }));
           return;
         }
 
-        notify('Scraper: Details table not found yet, retrying...');
+        notify('Scraper: Details not fully loaded yet, retrying...');
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'RETRY_DETAILS',
-          data: 'Details table not found'
+          data: 'Details not loaded'
         }));
         return;
       }
 
-      // Reset retries for the next subject once we successfully find the table
+      // Reset retries for the next subject once we successfully find data
       window._detailsRetries = 0;
 
-      notify('Scraper: Found details table, extracting data...');
+      notify('Scraper: Found details data, extracting...');
 
-      // Dynamic Extraction logic
       let cieValue = "0";
       let attValue = "0%";
       let t1 = "-", t2 = "-", q1 = "-", q2 = "-", il1 = "-", il2 = "-";
 
-      const cells = Array.from(cieTable.querySelectorAll('td'));
+      // Try to parse chartData if it exists
+      try {
+        const scriptMatch = scripts.match(/var\\s+chartData\\s*=\\s*(\\[.*?\\]);/s);
+        if (scriptMatch && scriptMatch[1]) {
+           // We need to convert the JS object array string to valid JSON. 
+           // This means wrapping unquoted keys in double quotes.
+           let jsonString = scriptMatch[1]
+             .replace(/([{,])\\s*([a-zA-Z0-9_]+)\\s*:/g, '$1"$2":') // Quote keys
+             .replace(/'/g, '"'); // Replace single quotes with double quotes
+             
+           const jsonData = JSON.parse(jsonString); 
+           
+           jsonData.forEach(item => {
+             const val = item.col1 !== undefined ? item.col1.toString() : "-";
+             if (item.xaxis === "T1") t1 = val;
+             if (item.xaxis === "T2") t2 = val;
+             if (item.xaxis === "Q1") q1 = val;
+             if (item.xaxis === "Q2") q2 = val;
+             if (item.xaxis === "IL1") il1 = val;
+             if (item.xaxis === "IL2") il2 = val;
+           });
+           notify('Scraper: Parsed chartData successfully');
+        }
+      } catch(e) {
+        notify('Scraper warning: Chart Data parse error: ' + e.message);
+      }
+
+      // Extract total CIE & Attendance (often found via specific DOM classes or by Regex over table text)
+      // NIE portal varies, so we use multiple fallback methods.
+      const cieTable = document.querySelector('.cn-cie-table') || document.querySelector('.cn-cie-stat-table') || document.body;
+      const cells = Array.from(cieTable.querySelectorAll('td, th, span, div'));
       
       cells.forEach(cell => {
           const text = cell.innerText.trim();
           const upperText = text.toUpperCase();
           
-          if (upperText.includes('T1 :')) t1 = text.split(':')[1]?.trim() || "-";
-          if (upperText.includes('T2 :')) t2 = text.split(':')[1]?.trim() || "-";
-          if (upperText.includes('Q1 :')) q1 = text.split(':')[1]?.trim() || "-";
-          if (upperText.includes('Q2 :')) q2 = text.split(':')[1]?.trim() || "-";
-          if (upperText.includes('IL1 :')) il1 = text.split(':')[1]?.trim() || "-";
-          if (upperText.includes('IL2 :')) il2 = text.split(':')[1]?.trim() || "-";
-          
-          if (upperText.includes('CIE :')) cieValue = text.split(':')[1]?.trim() || "0";
-          if (upperText.includes('ATTENDANCE :')) attValue = text.split(':')[1]?.trim() || "0%";
+          if (upperText.includes('CIE :')) cieValue = text.split(':')[1]?.trim() || cieValue;
+          if (upperText.includes('ATTENDANCE :')) attValue = text.split(':')[1]?.trim() || attValue;
       });
+      
+      // If still 0% for attendance, sometimes it's in a specific TD
+      if (attValue === "0%") {
+        const attMatch = pageText.match(/(\\d{1,3}(?:\\.\\d+)?)\\s*%/);
+        if (attMatch) {
+          attValue = attMatch[1] + '%';
+        }
+      }
+
+      // If CIE is still 0, try to sum up the T1, Q1, etc if they exist
+      if (cieValue === "0") {
+        let total = 0;
+        [t1, t2, q1, q2, il1, il2].forEach(v => {
+          if (!isNaN(parseFloat(v))) total += parseFloat(v);
+        });
+        if (total > 0) cieValue = total.toString();
+      }
 
       notify('Scraper: Extracted - CIE: ' + cieValue + ', ATT: ' + attValue);
 

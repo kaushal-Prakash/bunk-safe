@@ -15,6 +15,8 @@ import Animated, {
   FadeIn, 
   FadeOut, 
   FadeInDown,
+  FadeInRight,
+  FadeOutLeft
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -319,7 +321,7 @@ function EmptyState({ onSync }: { onSync: () => void }) {
 }
 
 function Onboarding({ onComplete, saveProfile }: any) {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [usn, setUsn] = useState('');
   const [dob, setDob] = useState('');
@@ -333,15 +335,42 @@ function Onboarding({ onComplete, saveProfile }: any) {
     onComplete();
   };
 
+  const slides = [
+    {
+      title: "BunkSafe.",
+      tag: "Never miss a safe attendance threshold again.",
+      icon: "shield-checkmark",
+    },
+    {
+      title: "100% Private.",
+      tag: "Your data is never stored on any server. Everything is scraped and saved locally on your device.",
+      icon: "lock-closed",
+    },
+    {
+      title: "Auto Sync.",
+      tag: "We connect directly to your student portal in the background to fetch your latest CIE and Attendance.",
+      icon: "sync-circle",
+    }
+  ];
+
   return (
     <View style={styles.container}>
       <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFill} />
-      {step === 1 ? (
-        <Animated.View entering={FadeIn} style={styles.onboardStep}>
-           <Text style={styles.onboardHero}>Bunk{'\n'}Safe.</Text>
-           <Text style={styles.onboardTag}>Never miss a safe attendance threshold again.</Text>
-           <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep(2)}>
-             <Text style={styles.primaryBtnText}>Get Started</Text>
+      
+      {step < slides.length ? (
+        <Animated.View key={`slide-${step}`} entering={FadeInRight} exiting={FadeOutLeft} style={styles.onboardStep}>
+           <Ionicons name={slides[step].icon as any} size={64} color="#3b82f6" style={{ marginBottom: 20 }} />
+           <Text style={styles.onboardHero}>{slides[step].title}</Text>
+           <Text style={styles.onboardTag}>{slides[step].tag}</Text>
+           
+           <View style={styles.slideIndicators}>
+             {slides.map((_, i) => (
+                <View key={i} style={[styles.indicatorDot, i === step && styles.indicatorDotActive]} />
+             ))}
+           </View>
+
+           <TouchableOpacity style={styles.primaryBtn} onPress={() => setStep(step + 1)}>
+             <Text style={styles.primaryBtnText}>{step === slides.length - 1 ? 'Get Started' : 'Next'}</Text>
            </TouchableOpacity>
         </Animated.View>
       ) : (
@@ -364,7 +393,7 @@ function Onboarding({ onComplete, saveProfile }: any) {
                onChangeText={setUsn}
              />
              <TextInput 
-               placeholder="DOB (YYYY-MM-DD)" 
+               placeholder="DOB (DD-MM-YYYY)" 
                placeholderTextColor="#64748b" 
                style={styles.input} 
                value={dob}
@@ -512,8 +541,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#64748b',
     marginTop: 20,
-    marginBottom: 60,
+    marginBottom: 40,
     lineHeight: 26,
+  },
+  slideIndicators: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 40,
+    gap: 8,
+  },
+  indicatorDot: {
+    height: 8,
+    width: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  indicatorDotActive: {
+    width: 24,
+    backgroundColor: '#3b82f6',
   },
   primaryBtn: {
     backgroundColor: '#3b82f6',
