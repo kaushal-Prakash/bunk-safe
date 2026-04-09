@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -20,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useStorage, AcademicData, Subject } from '@/hooks/use-storage';
 import { ScraperScripts } from '@/services/scraper-service';
 import { StatusBar } from 'expo-status-bar';
@@ -28,6 +29,14 @@ import { StatusBar } from 'expo-status-bar';
 import { AttendanceTab } from '@/components/attendance-tab';
 import { CieTab } from '@/components/cie-tab';
 import { SettingsTab } from '@/components/settings-tab';
+
+function getRelativeTime(isoString: string): string {
+  const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
 const { width } = Dimensions.get('window');
 
@@ -38,6 +47,7 @@ export default function Index() {
   const { profile, loading, saveProfile, clearProfile } = useStorage();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('attendance');
+  const [relativeTime, setRelativeTime] = useState('');
   
   // Scraping State
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
@@ -50,6 +60,16 @@ export default function Index() {
   const webViewRef = useRef<WebView>(null);
   const watchdogRef = useRef<any>(null);
   const [webViewUrl, setWebViewUrl] = useState('https://parents.nie.ac.in/index.php');
+
+  // Update relative time every 30s
+  useEffect(() => {
+    if (!profile?.academicData) return;
+    setRelativeTime(getRelativeTime(profile.academicData.lastUpdated));
+    const interval = setInterval(() => {
+      setRelativeTime(getRelativeTime(profile.academicData!.lastUpdated));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [profile?.academicData?.lastUpdated]);
 
   const resetWatchdog = () => {
     if (watchdogRef.current) clearTimeout(watchdogRef.current);
@@ -67,8 +87,9 @@ export default function Index() {
 
   // --- SCRAPER ORCHESTRATION ---
 
-  const startSync = () => {
+  const startSync = useCallback(() => {
     if (!profile) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSyncError(null);
     setSyncStatus('logging_in');
     setSyncProgress(0.1);
@@ -80,7 +101,7 @@ export default function Index() {
       webViewRef.current?.reload();
     }, 100);
     resetWatchdog();
-  };
+  }, [profile]);
 
   const onWebViewMessage = (event: WebViewMessageEvent) => {
     resetWatchdog();
@@ -232,10 +253,10 @@ export default function Index() {
       {/* Dashboard Top bar */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hey, {profile?.name.split(' ')[0]}</Text>
+          <Text style={styles.greeting}>Hey, {profile?.name.split(' ')[0]} 👋</Text>
           <Text style={styles.lastUpdate}>
             {profile?.academicData 
-              ? `Last synced: ${new Date(profile.academicData.lastUpdated).toLocaleTimeString()}`
+              ? `Last synced: ${relativeTime || getRelativeTime(profile.academicData.lastUpdated)}`
               : 'Sync required to view data'}
           </Text>
         </View>
@@ -252,14 +273,22 @@ export default function Index() {
       <View style={styles.content}>
         {activeTab === 'attendance' && (
            profile?.academicData ? (
-             <AttendanceTab subjects={profile.academicData.subjects} />
+             <AttendanceTab 
+               subjects={profile.academicData.subjects}
+               onRefresh={startSync}
+               refreshing={syncStatus !== 'idle'}
+             />
            ) : (
              <EmptyState onSync={startSync} />
            )
         )}
         {activeTab === 'cie' && (
            profile?.academicData ? (
-             <CieTab subjects={profile.academicData.subjects} />
+             <CieTab 
+               subjects={profile.academicData.subjects}
+               onRefresh={startSync}
+               refreshing={syncStatus !== 'idle'}
+             />
            ) : (
              <EmptyState onSync={startSync} />
            )
@@ -303,6 +332,7 @@ function NavButton({ active, icon, label, onPress }: any) {
     <TouchableOpacity onPress={onPress} style={styles.navBtn}>
       <Ionicons name={active ? icon : `${icon}-outline`} size={22} color={active ? '#3b82f6' : '#64748b'} />
       <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
+      {active && <View style={styles.navActiveDot} />}
     </TouchableOpacity>
   );
 }
@@ -472,6 +502,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
+    paddingVertical: 8,
   },
   navLabel: {
     fontSize: 10,
@@ -481,6 +512,13 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: '#3b82f6',
+  },
+  navActiveDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3b82f6',
+    marginTop: 4,
   },
   syncOverlay: {
     ...StyleSheet.absoluteFillObject,

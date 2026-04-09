@@ -1,30 +1,110 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, RefreshControl } from 'react-native';
 import { Subject } from '@/hooks/use-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInRight } from 'react-native-reanimated';
+import Animated, { FadeInRight, FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
 interface Props {
   subjects: Subject[];
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-export function AttendanceTab({ subjects }: Props) {
+function computeBunksInfo(percentage: number): { text: string; color: string } {
+  // Standard: need >= 75% to be safe
+  // Formula: classes_needed = ceil((0.75 * (total+x) - attended) / 0.25) where attended = pct/100 * total
+  // Simpler heuristic from percentage only:
+  if (percentage >= 75) {
+    // How many can they bunk: if current = p/100 * total = attended, need attended/(total+x) >= 0.75
+    // x = floor((attended - 0.75*total) / 0.75) = floor((p - 75) / 75 * total)
+    // Without total, approximate assuming total ~40 classes typical semester
+    const approxTotal = 40;
+    const attended = Math.round((percentage / 100) * approxTotal);
+    const canBunk = Math.floor((attended - 0.75 * approxTotal) / 0.75);
+    if (canBunk <= 0) return { text: 'On the edge – don\'t miss any', color: '#f59e0b' };
+    return { text: `Can bunk ~${canBunk} more safely`, color: '#10b981' };
+  } else {
+    const approxTotal = 40;
+    const attended = Math.round((percentage / 100) * approxTotal);
+    // Need: (attended + x) / (approxTotal + x) >= 0.75
+    // attended + x >= 0.75 * approxTotal + 0.75x => 0.25x >= 0.75*approxTotal - attended
+    // x >= (0.75 * approxTotal - attended) / 0.25
+    const needed = Math.ceil((0.75 * approxTotal - attended) / 0.25);
+    return { text: `Attend ~${needed} more to be safe`, color: '#ef4444' };
+  }
+}
+
+export function AttendanceTab({ subjects, onRefresh, refreshing = false }: Props) {
+  const safeSubjects = subjects.filter(s => (parseInt(s.attendance) || 0) >= 75);
+  const atRiskSubjects = subjects.filter(s => (parseInt(s.attendance) || 0) < 75);
+  const avgAttendance =
+    subjects.length > 0
+      ? Math.round(subjects.reduce((sum, s) => sum + (parseInt(s.attendance) || 0), 0) / subjects.length)
+      : 0;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#3b82f6"
+            colors={['#3b82f6']}
+          />
+        ) : undefined
+      }
+    >
       <Text style={styles.header}>Attendance Status</Text>
       <Text style={styles.subtitle}>Track your sessions across all subjects.</Text>
+
+      {/* Summary Card */}
+      <Animated.View entering={FadeInDown.duration(500)} style={styles.summaryCard}>
+        <LinearGradient
+          colors={['rgba(59,130,246,0.15)', 'rgba(99,102,241,0.08)']}
+          style={styles.summaryGradient}
+        >
+          <View style={styles.summaryLeft}>
+            <Text style={styles.summaryAvgLabel}>Overall Average</Text>
+            <Text style={[styles.summaryAvgValue, avgAttendance < 75 && { color: '#ef4444' }]}>
+              {avgAttendance}%
+            </Text>
+            <View style={styles.summaryBadgeRow}>
+              <View style={styles.summaryBadgeSafe}>
+                <Ionicons name="checkmark-circle" size={12} color="#10b981" />
+                <Text style={styles.summaryBadgeSafeText}>{safeSubjects.length} Safe</Text>
+              </View>
+              {atRiskSubjects.length > 0 && (
+                <View style={styles.summaryBadgeRisk}>
+                  <Ionicons name="warning" size={12} color="#ef4444" />
+                  <Text style={styles.summaryBadgeRiskText}>{atRiskSubjects.length} At Risk</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.summaryRing}>
+            <Text style={[styles.summaryRingValue, avgAttendance < 75 && { color: '#ef4444' }]}>
+              {avgAttendance}
+            </Text>
+            <Text style={styles.summaryRingUnit}>%</Text>
+          </View>
+        </LinearGradient>
+      </Animated.View>
 
       {subjects.map((subject, index) => {
         const percentage = parseInt(subject.attendance.replace('%', '')) || 0;
         const isWarning = percentage < 75;
+        const bunksInfo = computeBunksInfo(percentage);
 
         return (
-          <Animated.View 
+          <Animated.View
             key={subject.code}
-            entering={FadeInRight.delay(index * 100).duration(500)}
+            entering={FadeInRight.delay(index * 80).duration(500)}
             style={[styles.card, isWarning && styles.cardWarning]}
           >
             <View style={styles.cardHeader}>
@@ -44,20 +124,26 @@ export function AttendanceTab({ subjects }: Props) {
                 colors={isWarning ? ['#ef4444', '#f87171'] : ['#10b981', '#34d399']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={[styles.progressBar, { width: `${percentage}%` }]}
+                style={[styles.progressBar, { width: `${Math.min(percentage, 100)}%` }]}
               />
+              {/* 75% threshold marker */}
+              <View style={styles.thresholdMarker} />
             </View>
-            
+
             <View style={styles.cardFooter}>
               <View style={[styles.statusBadge, isWarning ? styles.statusBadgeWarning : styles.statusBadgeSafe]}>
-                <Ionicons 
-                  name={isWarning ? "warning" : "checkmark-circle"} 
-                  size={16} 
-                  color={isWarning ? "#ef4444" : "#10b981"} 
+                <Ionicons
+                  name={isWarning ? 'warning' : 'checkmark-circle'}
+                  size={14}
+                  color={isWarning ? '#ef4444' : '#10b981'}
                 />
                 <Text style={[styles.statusLabel, isWarning ? styles.statusLabelWarning : styles.statusLabelSafe]}>
                   {isWarning ? 'Below Threshold (< 75%)' : 'Safe Attendance (≥ 75%)'}
                 </Text>
+              </View>
+              <View style={styles.bunksHint}>
+                <Ionicons name="information-circle-outline" size={13} color={bunksInfo.color} />
+                <Text style={[styles.bunksText, { color: bunksInfo.color }]}>{bunksInfo.text}</Text>
               </View>
             </View>
           </Animated.View>
@@ -84,8 +170,96 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     color: '#64748b',
-    marginBottom: 24,
+    marginBottom: 20,
   },
+  // Summary Card
+  summaryCard: {
+    borderRadius: 24,
+    marginBottom: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)',
+  },
+  summaryGradient: {
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  summaryLeft: {
+    flex: 1,
+  },
+  summaryAvgLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  summaryAvgValue: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: '#3b82f6',
+    lineHeight: 52,
+  },
+  summaryBadgeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+    flexWrap: 'wrap',
+  },
+  summaryBadgeSafe: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  summaryBadgeSafeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  summaryBadgeRisk: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  summaryBadgeRiskText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ef4444',
+  },
+  summaryRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderWidth: 3,
+    borderColor: 'rgba(59, 130, 246, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  summaryRingValue: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#3b82f6',
+  },
+  summaryRingUnit: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3b82f6',
+    marginTop: 6,
+  },
+  // Subject cards
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 20,
@@ -141,15 +315,24 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 4,
     overflow: 'hidden',
+    position: 'relative',
   },
   progressBar: {
     height: '100%',
     borderRadius: 4,
   },
+  thresholdMarker: {
+    position: 'absolute',
+    left: '75%',
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 1,
+  },
   cardFooter: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginTop: 14,
+    gap: 8,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -158,6 +341,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     gap: 6,
+    alignSelf: 'flex-start',
   },
   statusBadgeSafe: {
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
@@ -166,7 +350,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
   },
   statusLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   statusLabelSafe: {
@@ -174,5 +358,15 @@ const styles = StyleSheet.create({
   },
   statusLabelWarning: {
     color: '#ef4444',
+  },
+  bunksHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingLeft: 2,
+  },
+  bunksText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
 });

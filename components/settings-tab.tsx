@@ -11,6 +11,9 @@ import {
 import { UserProfile } from '@/hooks/use-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+
+const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 interface Props {
   profile: UserProfile;
@@ -102,7 +105,7 @@ export function SettingsTab({ profile, onUpdate, onClear }: Props) {
       <View style={styles.footer}>
         <Text style={styles.devTag}>Developed with ❤️ by</Text>
         <Text style={styles.devName}>Kaushal Prakash</Text>
-        <Text style={styles.version}>Bunk Safe v1.2.0</Text>
+        <Text style={styles.version}>Bunk Safe v{APP_VERSION}</Text>
       </View>
     </ScrollView>
   );
