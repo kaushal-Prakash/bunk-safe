@@ -77,6 +77,9 @@ Bunk Safe is a fully private, locally-run React Native mobile application for st
    - Scan the QR code with the Expo Go app on your phone.
    - Or press `a` to run on Android / `i` to run on iOS simulators.
 
+> [!WARNING]
+> **Installing the APK directly?** Android will warn you that *"This app may be harmful"* or ask you to confirm installing from unknown sources. This is **normal and expected** — the APK is unsigned and not distributed through the Play Store since this is an open-source project without a publisher account. The app is fully safe; you can review all the source code in this repository. Tap **"Install anyway"** to proceed.
+
 ## Security & Privacy 🔒
 
 This app is built precisely because many wrapper apps exist that send user credentials to centralized backend servers. With Bunk Safe:
