@@ -81,7 +81,7 @@ export const ScraperScripts = {
       if (!isDashboard) {
         notify('Scraper ERROR: Not on dashboard page. Current body text starts with: ' + document.body.innerText.substring(0, 50));
         window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'ERROR',
+          type: 'RETRY_LIST',
           data: 'Not on dashboard page'
         }));
         return;
@@ -97,10 +97,20 @@ export const ScraperScripts = {
         if (cells.length >= 5) {
           const code = cells[0].innerText.trim();
           const name = cells[1].innerText.trim();
-          const attendanceLink = cells[3].querySelector('a')?.href;
-          const cieLink = cells[4].querySelector('a')?.href;
           
-          if (code && name) {
+          let attendanceLink = '';
+          let cieLink = '';
+          const aAtt = cells[3].querySelector('a');
+          const aCie = cells[4].querySelector('a');
+          
+          if (aAtt) {
+             attendanceLink = aAtt.href;
+          }
+          if (aCie) {
+             cieLink = aCie.href;
+          }
+          
+          if (code && name && attendanceLink && cieLink) {
             subjects.push({ code, name, attendanceLink, cieLink });
           }
         }
@@ -124,8 +134,24 @@ export const ScraperScripts = {
           window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
       };
 
-      const cieTable = document.querySelector('.cn-cie-stat-table');
+      // Track retries to avoid infinite loop logging without useful info
+      window._detailsRetries = (window._detailsRetries || 0) + 1;
+
+      const cieTable = document.querySelector('.cn-cie-table') || document.querySelector('.cn-cie-stat-table');
       if (!cieTable) {
+        if (window._detailsRetries > 8) {
+          notify('Scraper ERROR: Gave up finding details table.');
+          const tables = Array.from(document.querySelectorAll('table')).map(t => t.className || 'unnamed-table');
+          notify('Scraper: Found tables on page: ' + JSON.stringify(tables));
+          notify('Scraper: Page text start: ' + document.body.innerText.substring(0, 150).replace(/\\n/g, ' '));
+          
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'ERROR',
+            data: 'Could not find the CIE/Attendance details table on the page.'
+          }));
+          return;
+        }
+
         notify('Scraper: Details table not found yet, retrying...');
         window.ReactNativeWebView.postMessage(JSON.stringify({
           type: 'RETRY_DETAILS',
@@ -134,20 +160,32 @@ export const ScraperScripts = {
         return;
       }
 
+      // Reset retries for the next subject once we successfully find the table
+      window._detailsRetries = 0;
+
       notify('Scraper: Found details table, extracting data...');
 
-      const cieText = document.querySelector('.cn-cie-stat-table td:nth-child(7)')?.innerText || "";
-      const attText = document.querySelector('.cn-cie-stat-table td:nth-child(8)')?.innerText || "";
-      
-      const t1 = document.querySelector('.cn-cie-stat-table td:nth-child(1)')?.innerText.split(':')[1]?.trim() || "-";
-      const t2 = document.querySelector('.cn-cie-stat-table td:nth-child(2)')?.innerText.split(':')[1]?.trim() || "-";
-      const q1 = document.querySelector('.cn-cie-stat-table td:nth-child(3)')?.innerText.split(':')[1]?.trim() || "-";
-      const q2 = document.querySelector('.cn-cie-stat-table td:nth-child(4)')?.innerText.split(':')[1]?.trim() || "-";
-      const il1 = document.querySelector('.cn-cie-stat-table td:nth-child(5)')?.innerText.split(':')[1]?.trim() || "-";
-      const il2 = document.querySelector('.cn-cie-stat-table td:nth-child(6)')?.innerText.split(':')[1]?.trim() || "-";
+      // Dynamic Extraction logic
+      let cieValue = "0";
+      let attValue = "0%";
+      let t1 = "-", t2 = "-", q1 = "-", q2 = "-", il1 = "-", il2 = "-";
 
-      const cieValue = cieText.split(':')[1]?.trim() || "0";
-      const attValue = attText.split(':')[1]?.trim() || "0%";
+      const cells = Array.from(cieTable.querySelectorAll('td'));
+      
+      cells.forEach(cell => {
+          const text = cell.innerText.trim();
+          const upperText = text.toUpperCase();
+          
+          if (upperText.includes('T1 :')) t1 = text.split(':')[1]?.trim() || "-";
+          if (upperText.includes('T2 :')) t2 = text.split(':')[1]?.trim() || "-";
+          if (upperText.includes('Q1 :')) q1 = text.split(':')[1]?.trim() || "-";
+          if (upperText.includes('Q2 :')) q2 = text.split(':')[1]?.trim() || "-";
+          if (upperText.includes('IL1 :')) il1 = text.split(':')[1]?.trim() || "-";
+          if (upperText.includes('IL2 :')) il2 = text.split(':')[1]?.trim() || "-";
+          
+          if (upperText.includes('CIE :')) cieValue = text.split(':')[1]?.trim() || "0";
+          if (upperText.includes('ATTENDANCE :')) attValue = text.split(':')[1]?.trim() || "0%";
+      });
 
       notify('Scraper: Extracted - CIE: ' + cieValue + ', ATT: ' + attValue);
 

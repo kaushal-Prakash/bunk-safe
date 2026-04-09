@@ -72,6 +72,11 @@ export default function Index() {
     setSyncProgress(0.1);
     setTempAcademicData([]);
     setWebViewUrl('https://parents.nie.ac.in/index.php');
+    
+    // Force a reload to guarantee onLoadEnd fires, as the URL might not have changed
+    setTimeout(() => {
+      webViewRef.current?.reload();
+    }, 100);
     resetWatchdog();
   };
 
@@ -88,13 +93,21 @@ export default function Index() {
       if (type === 'ERROR') {
         setSyncStatus('error');
         setSyncError(data);
+      } else if (type === 'RETRY_LIST') {
+        setTimeout(() => {
+          webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
+        }, 1500);
+      } else if (type === 'RETRY_DETAILS') {
+        setTimeout(() => {
+          webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectDetails);
+        }, 1500);
       } else if (type === 'SUBJECT_LIST') {
         setSubjectsToFetch(data);
         setSyncStatus('fetching_details');
         setSyncProgress(0.3);
         if (data.length > 0) {
           setCurrentSubjectIndex(0);
-          setWebViewUrl(data[0].cieLink);
+          webViewRef.current?.injectJavaScript(`window.location.href = "${data[0].cieLink}"; true;`);
         } else {
           finishSync([]);
         }
@@ -116,7 +129,7 @@ export default function Index() {
 
         if (nextIndex < subjectsToFetch.length) {
           setCurrentSubjectIndex(nextIndex);
-          setWebViewUrl(subjectsToFetch[nextIndex].cieLink);
+          webViewRef.current?.injectJavaScript(`window.location.href = "${subjectsToFetch[nextIndex].cieLink}"; true;`);
         } else {
           finishSync(updatedTemp);
         }
