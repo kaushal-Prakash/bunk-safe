@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.kaushalprakash.bunksafe"
     },
     "web": {
       "output": "static",
@@ -46,6 +47,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c35a8bbf-72ed-4d6e-b8c0-d8ec22857cb8"
+      }
+    },
+    "owner": "kaushalprakash"
   }
 }
