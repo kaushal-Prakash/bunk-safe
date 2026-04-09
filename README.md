@@ -1,4 +1,4 @@
-# Bunk Safe 🛡️
+# BunkSafe 🛡️
 
 Bunk Safe is a fully private, locally-run React Native mobile application for students to track their Continuous Internal Evaluation (CIE) marks and attendance without compromising their credentials or data.
 
