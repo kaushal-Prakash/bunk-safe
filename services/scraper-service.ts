@@ -118,7 +118,7 @@ export const ScraperScripts = {
           }
           
           if (code && name && attendanceLink && cieLink) {
-            subjects.push({ code, name, attendance: cells[2].innerText.trim(), attendanceLink, cieLink });
+            subjects.push({ code, name, attendance: '', attendanceLink, cieLink });
           }
         }
       });
@@ -177,12 +177,18 @@ export const ScraperScripts = {
            const doc2 = parser.parseFromString(html2, 'text/html');
            const bodyTxt = doc2.body.innerText;
 
-              // Extract generic attendance score from main text as fallback if missing
-              if (!sub.attendance) {
-                 let attMatch = bodyTxt.match(/Attendance\\s+([\\d.]+)%/i) || bodyTxt.match(/([\\d.]+)%/);
-                 sub.attendance = attMatch ? attMatch[1] + '%' : '0%';
+              // Forcibly extract attendance percentage from CIE page text
+              let attMatch = bodyTxt.match(/Attendance\\s+([\\d.]+)%/i);
+              if (attMatch && attMatch[1]) {
+                 sub.attendance = attMatch[1] + '%';
+              } else if (sub.attendanceDetails.length > 0) {
+                 // Fallback: Mathematically calculate attendance directly from the calendar list!
+                 let conducted = sub.attendanceDetails.length;
+                 let present = sub.attendanceDetails.filter(d => d.status === 'Present').length;
+                 sub.attendance = Math.round((present / conducted) * 100) + '%';
+              } else {
+                 sub.attendance = '0%';
               }
-
               // CIE Parsing (inside the script tags)
               let chartData = [];
               const chartMatch = html2.match(/var\\s+chartData\\s*=\\s*(\\[[\\s\\S]*?\\])\\s*;/i);
