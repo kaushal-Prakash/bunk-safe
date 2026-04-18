@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, RefreshControl } from 'react-native';
 import { Subject } from '@/hooks/use-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
@@ -12,11 +11,10 @@ interface Props {
   refreshing?: boolean;
 }
 
-function getBarColor(value: number, max: number): [string, string] {
-  const pct = max > 0 ? (value / max) * 100 : 0;
-  if (pct >= 70) return ['#10b981', '#34d399']; // green
-  if (pct >= 40) return ['#f59e0b', '#fbbf24']; // amber
-  return ['#ef4444', '#f87171'];                  // red
+function getAccentColor(pct: number): string {
+  if (pct >= 70) return '#10b981';
+  if (pct >= 40) return '#f59e0b';
+  return '#ef4444';
 }
 
 export function CieTab({ subjects, onRefresh, refreshing = false }: Props) {
@@ -36,100 +34,77 @@ export function CieTab({ subjects, onRefresh, refreshing = false }: Props) {
       }
     >
       <Text style={styles.header}>Internal Assessments</Text>
-      <Text style={styles.subtitle}>Continuous Internal Evaluation (CIE) breakdown.</Text>
+      <Text style={styles.subtitle}>CIE marks breakdown per subject</Text>
 
       {subjects.map((subject, index) => {
         const total = parseFloat(subject.cie.total) || 0;
-        const maxTotal = 100; // Updated max to 100
+        const maxTotal = 100;
 
-        // Use the dynamically parsed marks array if it exists, otherwise fallback to old hardcoded fields if needed
-        const components: { label: string, value: string, max: number }[] = subject.cie.marks || [
-          { label: 'T1', value: subject.cie.t1 || '-', max: 25 },
-          { label: 'T2', value: subject.cie.t2 || '-', max: 25 },
-          { label: 'Q1', value: subject.cie.q1 || '-', max: 5 },
-          { label: 'Q2', value: subject.cie.q2 || '-', max: 5 },
-          { label: 'IL1', value: subject.cie.il1 || '-', max: 5 },
-          { label: 'IL2', value: subject.cie.il2 || '-', max: 5 },
+        // Dynamic marks array from scraper, with fallback
+        const components: { label: string; value: string; max: number }[] = subject.cie.marks || [
+          { label: 'T1', value: subject.cie.t1 || '0', max: 25 },
+          { label: 'T2', value: subject.cie.t2 || '0', max: 25 },
+          { label: 'Q1', value: subject.cie.q1 || '0', max: 5 },
+          { label: 'Q2', value: subject.cie.q2 || '0', max: 5 },
+          { label: 'IL1', value: subject.cie.il1 || '0', max: 5 },
+          { label: 'IL2', value: subject.cie.il2 || '0', max: 5 },
         ];
 
-        const totalPct = (total / maxTotal) * 100;
-        const totalColor = totalPct >= 70 ? '#10b981' : totalPct >= 40 ? '#f59e0b' : '#ef4444';
+        const totalPct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+        const accent = getAccentColor(totalPct);
 
         return (
           <Animated.View
             key={subject.code}
-            entering={FadeInDown.delay(index * 100).duration(500)}
+            entering={FadeInDown.delay(index * 80).duration(400)}
             style={styles.card}
           >
-            <View style={styles.cardHeader}>
-              <View style={{ flex: 1, marginRight: 10 }}>
+            {/* Subject header */}
+            <View style={styles.cardTop}>
+              <View style={styles.subjectInfo}>
                 <Text style={styles.subjectCode}>{subject.code}</Text>
-                <Text style={styles.subjectName}>{subject.name}</Text>
-              </View>
-              <View style={[styles.totalBadge, { backgroundColor: `${totalColor}18`, borderColor: `${totalColor}30`, borderWidth: 1 }]}>
-                <Text style={[styles.totalValue, { color: totalColor }]}>{subject.cie.total}</Text>
-                <Text style={[styles.totalLabel, { color: totalColor }]}>/ {maxTotal}</Text>
+                <Text style={styles.subjectName} numberOfLines={2}>{subject.name}</Text>
               </View>
             </View>
 
-            {/* Total progress bar */}
-            <View style={styles.totalProgressTrack}>
-              <LinearGradient
-                colors={[totalColor, totalColor]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={[styles.totalProgressBar, { width: `${Math.min(totalPct, 100)}%` }]}
-              />
-            </View>
-            <View style={styles.totalProgressLabels}>
-              <Text style={styles.totalProgressLow}>0</Text>
-              <Text style={[styles.totalProgressHigh, { color: totalColor }]}>{total}/{maxTotal}</Text>
-            </View>
+            {/* Component marks grid */}
+            <View style={styles.marksGrid}>
+              {components.map((comp) => {
+                const isNotTaken = comp.value === 'Not Taken' || (comp.value === '0' && comp.max === 0);
+                const numVal = parseFloat(comp.value) || 0;
+                const pct = comp.max > 0 && !isNotTaken ? (numVal / comp.max) * 100 : 0;
+                const compAccent = isNotTaken ? '#94a3b8' : getAccentColor(pct);
 
-            <View style={styles.divider} />
+                // Display value: show actual scraped value, not parsed
+                let displayVal: string;
+                if (isNotTaken) {
+                  displayVal = 'N/A';
+                } else if (comp.value && comp.value !== '-' && comp.value !== '0') {
+                  displayVal = `${comp.value}/${comp.max}`;
+                } else if (numVal > 0) {
+                  displayVal = `${numVal}/${comp.max}`;
+                } else {
+                  displayVal = `0/${comp.max}`;
+                }
 
-            {/* Bar chart */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartScrollView}>
-              <View style={styles.chartArea}>
-                {components.map((comp) => {
-                  const val = parseFloat(comp.value || '0') || 0;
-                  const isNotTaken = comp.value === 'Not Taken';
-                  const barPct = comp.max > 0 && !isNotTaken ? (val / comp.max) * 100 : 0;
-                  const barHeightPx = Math.max((barPct / 100) * 80, (val > 0 && !isNotTaken) ? 4 : 2);
-                  const [c1, c2] = getBarColor(val, comp.max);
-
-                  return (
-                    <View key={comp.label} style={styles.barContainer}>
-                      <View style={styles.barWrapper}>
-                        <LinearGradient
-                          colors={[isNotTaken ? '#475569' : c1, isNotTaken ? '#334155' : c2]}
-                          style={[styles.bar, { height: barHeightPx }]}
-                        />
-                      </View>
-                      <Text style={styles.barLabel}>{comp.label}</Text>
-                      <Text style={[styles.barValue, { color: isNotTaken ? '#64748b' : c1 }]} numberOfLines={1}>
-                        {comp.value === '-' || !comp.value ? '—' : isNotTaken ? 'N/A' : comp.value}
-                      </Text>
+                return (
+                  <View key={comp.label} style={styles.markItem}>
+                    <Text style={styles.markLabel}>{comp.label}</Text>
+                    <Text style={[styles.markValue, { color: compAccent }]}>{displayVal}</Text>
+                    <View style={styles.markBar}>
+                      <View
+                        style={[
+                          styles.markBarFill,
+                          {
+                            width: `${Math.min(pct, 100)}%`,
+                            backgroundColor: compAccent,
+                          },
+                        ]}
+                      />
                     </View>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            {/* Legend */}
-            <View style={styles.legend}>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
-                <Text style={styles.legendText}>≥70%</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-                <Text style={styles.legendText}>40–69%</Text>
-              </View>
-              <View style={styles.legendItem}>
-                <View style={[styles.legendDot, { backgroundColor: '#ef4444' }]} />
-                <Text style={styles.legendText}>&lt;40%</Text>
-              </View>
+                  </View>
+                );
+              })}
             </View>
           </Animated.View>
         );
@@ -144,7 +119,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 100,
+    paddingBottom: 120,
   },
   header: {
     fontSize: 28,
@@ -158,137 +133,101 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 20,
     padding: 20,
-    marginBottom: 20,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
-  cardHeader: {
+
+  // --- Card header ---
+  cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
+  },
+  subjectInfo: {
+    flex: 1,
+    marginRight: 16,
   },
   subjectCode: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#6366f1',
-    marginBottom: 2,
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   subjectName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#f1f5f9',
-    maxWidth: width * 0.5,
+    color: '#e2e8f0',
+    lineHeight: 20,
   },
-  totalBadge: {
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    alignItems: 'baseline',
+  totalBox: {
     flexDirection: 'row',
-    gap: 2,
-    minWidth: 80,
+    alignItems: 'baseline',
   },
   totalValue: {
-    fontSize: 20,
+    fontSize: 28,
     fontWeight: '900',
   },
-  totalLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+  totalMax: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
   },
-  totalProgressTrack: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 3,
+
+  // --- Progress bar ---
+  progressTrack: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 2,
+    marginBottom: 18,
     overflow: 'hidden',
-    marginBottom: 4,
   },
-  totalProgressBar: {
+  progressFill: {
     height: '100%',
-    borderRadius: 3,
-    opacity: 0.8,
+    borderRadius: 2,
   },
-  totalProgressLabels: {
+
+  // --- Marks grid ---
+  marksGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  totalProgressLow: {
-    fontSize: 10,
-    color: '#334155',
+  markItem: {
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    minWidth: (width - 80) / 3,
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.04)',
   },
-  totalProgressHigh: {
-    fontSize: 10,
+  markLabel: {
+    fontSize: 14,
     fontWeight: '700',
+    color: '#e2e8f0',
+    marginBottom: 6,
   },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginBottom: 16,
-  },
-  chartScrollView: {
-    minWidth: '100%',
-  },
-  chartArea: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-end',
-    height: 130,
-    paddingTop: 10,
-    gap: 12,
-    paddingRight: 16,
-    paddingBottom: 4,
-  },
-  barContainer: {
-    alignItems: 'center',
-    minWidth: 44,
-  },
-  barWrapper: {
-    height: 80,
-    width: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 7,
-    justifyContent: 'flex-end',
+  markValue: {
+    fontSize: 18,
+    fontWeight: '800',
     marginBottom: 8,
+  },
+  markBar: {
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: 2,
     overflow: 'hidden',
   },
-  bar: {
-    width: '100%',
-    borderRadius: 7,
-  },
-  barLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#cbd5e1',
-    marginBottom: 4,
-  },
-  barValue: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  legend: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 12,
-    justifyContent: 'flex-end',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontSize: 10,
-    color: '#64748b',
+  markBarFill: {
+    height: '100%',
+    borderRadius: 2,
   },
 });
