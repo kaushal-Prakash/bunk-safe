@@ -65,9 +65,7 @@ export function SettingsTab({ profile, onUpdate, onClear }: Props) {
                 />
               </View>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                <LinearGradient colors={['#3b82f6', '#2563eb']} style={styles.gradientBtn}>
-                  <Text style={styles.btnText}>Save Changes</Text>
-                </LinearGradient>
+                <Text style={styles.btnText}>Save Changes</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditing(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
@@ -191,14 +189,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   saveBtn: {
+    backgroundColor: '#3b82f6',
     borderRadius: 12,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-  gradientBtn: {
     padding: 16,
     alignItems: 'center',
-    borderRadius: 12,
+    marginTop: 8,
   },
   btnText: {
     color: '#ffffff',
