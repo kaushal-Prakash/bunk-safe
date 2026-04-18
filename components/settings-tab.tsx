@@ -12,9 +12,9 @@ import {
 import { UserProfile } from '@/hooks/use-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
+import packageJson from '../package.json';
 
-const APP_VERSION = Constants.expoConfig?.version ?? '2.0.0';
+const APP_VERSION = packageJson.version;
 
 interface Props {
   profile: UserProfile;
