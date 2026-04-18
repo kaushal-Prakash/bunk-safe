@@ -326,7 +326,7 @@ export default function Index() {
         onRequestClose={() => setShowPortal(false)}
       >
         <View style={styles.portalOverlay}>
-          <View style={[styles.portalHeader, { paddingTop: Platform.OS === 'android' ? 12 : Math.max(insets.top, 20) }]}>
+          <View style={[styles.portalHeader, { paddingTop: Platform.OS === 'android' ? Math.max(insets.top + 10, 40) : Math.max(insets.top, 40) }]}>
              <Ionicons name="globe-outline" size={24} color="#10b981" />
              <Text style={styles.portalTitle}>Student Portal</Text>
              <TouchableOpacity style={styles.portalCloseBtn} onPress={() => setShowPortal(false)}>
