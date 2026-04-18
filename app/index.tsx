@@ -9,7 +9,8 @@ import {
   Alert,
   TextInput,
   Platform,
-  Keyboard
+  Keyboard,
+  Modal
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import Animated, { 
@@ -353,9 +354,14 @@ export default function Index() {
       )}
       
       {/* Portal Overlay */}
-      {showPortal && profile && (
-        <Animated.View entering={FadeInDown} exiting={FadeOut} style={styles.portalOverlay}>
-          <View style={[styles.portalHeader, { paddingTop: insets.top }]}>
+      <Modal
+        visible={showPortal && !!profile}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowPortal(false)}
+      >
+        <View style={styles.portalOverlay}>
+          <View style={[styles.portalHeader, { paddingTop: Math.max(insets.top, 20) }]}>
              <Ionicons name="globe-outline" size={24} color="#10b981" />
              <Text style={styles.portalTitle}>Student Portal</Text>
              <TouchableOpacity style={styles.portalCloseBtn} onPress={() => setShowPortal(false)}>
@@ -366,19 +372,53 @@ export default function Index() {
             ref={portalWebViewRef}
             source={{ uri: 'https://parents.nie.ac.in/index.php' }}
             style={{ flex: 1 }}
+            renderError={(errorDomain, errorCode, errorDesc) => (
+              <View style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+                <Ionicons name="cloud-offline-outline" size={64} color="#64748b" />
+                <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginTop: 16 }}>Connection Refused</Text>
+                <Text style={{ color: '#94a3b8', textAlign: 'center', marginTop: 12, fontSize: 16 }}>
+                  The college portal server is actively blocking the connection (Error: {errorCode}).
+                </Text>
+                <Text style={{ color: '#ef4444', textAlign: 'center', marginTop: 16, fontSize: 16, fontWeight: '600' }}>
+                  Please try switching off college WiFi to mobile data, or changing your network!
+                </Text>
+              </View>
+            )}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
             onLoadEnd={() => {
-               // Auto login
+               if (!profile) return;
+               // Parse DOB
+               let day = '', month = '', year = '';
+               const dob = profile.dob;
+               if (dob.includes('-')) {
+                 const parts = dob.split('-');
+                 if (parts[0].length === 4) { [year, month, day] = parts; }
+                 else { [day, month, year] = parts; }
+               }
+               day = day.padStart(2, '0');
+               month = month.padStart(2, '0');
+
                portalWebViewRef.current?.injectJavaScript(`
-                 const userField = document.querySelector('#username');
-                 if (userField && !userField.value) {
-                   ${ScraperScripts.login(profile.usn, profile.dob)}
-                 }
+                 (function() {
+                   var u = document.querySelector('#username');
+                   var d = document.querySelector('#dd');
+                   var m = document.querySelector('#mm');
+                   var y = document.querySelector('#yyyy');
+                   if (u && d && m && y) {
+                     u.value = '${profile.usn}';
+                     d.value = '${day} ';
+                     m.value = '${month}';
+                     y.value = '${year}';
+                     if (typeof putdate === 'function') putdate();
+                   }
+                 })();
                  true;
                `);
             }}
           />
-        </Animated.View>
-      )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -742,9 +782,8 @@ const styles = StyleSheet.create({
     marginTop: -8,
   },
   portalOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
     backgroundColor: '#0f172a',
-    zIndex: 2000,
   },
   portalHeader: {
     backgroundColor: '#0f172a',

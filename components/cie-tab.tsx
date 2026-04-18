@@ -106,8 +106,8 @@ export function CieTab({ subjects, onRefresh, refreshing = false }: Props) {
                           style={[styles.bar, { height: barHeightPx }]}
                         />
                       </View>
-                      <Text style={styles.barLabel} numberOfLines={1}>{comp.label}</Text>
-                      <Text style={[styles.barValue, { color: isNotTaken ? '#64748b' : c1, fontSize: isNotTaken ? 9 : 10 }]}>
+                      <Text style={styles.barLabel}>{comp.label}</Text>
+                      <Text style={[styles.barValue, { color: isNotTaken ? '#64748b' : c1 }]} numberOfLines={1}>
                         {comp.value === '-' || !comp.value ? '—' : isNotTaken ? 'N/A' : comp.value}
                       </Text>
                     </View>
@@ -186,20 +186,19 @@ const styles = StyleSheet.create({
   },
   totalBadge: {
     borderRadius: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     alignItems: 'baseline',
     flexDirection: 'row',
-    gap: 4,
-    backgroundColor: 'transparent',
-    flexShrink: 1,
+    gap: 2,
+    minWidth: 80,
   },
   totalValue: {
     fontSize: 20,
     fontWeight: '900',
   },
   totalLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
   },
   totalProgressTrack: {
@@ -239,14 +238,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-start',
     alignItems: 'flex-end',
-    height: 120,
+    height: 130,
     paddingTop: 10,
-    gap: 16,
-    paddingRight: 10,
+    gap: 12,
+    paddingRight: 16,
+    paddingBottom: 4,
   },
   barContainer: {
     alignItems: 'center',
-    width: 20,
+    minWidth: 44,
   },
   barWrapper: {
     height: 80,
@@ -262,14 +262,14 @@ const styles = StyleSheet.create({
     borderRadius: 7,
   },
   barLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#64748b',
-    marginBottom: 2,
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#cbd5e1',
+    marginBottom: 4,
   },
   barValue: {
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
   legend: {
     flexDirection: 'row',

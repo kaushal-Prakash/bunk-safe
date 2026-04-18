@@ -198,10 +198,12 @@ const styles = StyleSheet.create({
   gradientBtn: {
     padding: 16,
     alignItems: 'center',
+    borderRadius: 12,
   },
   btnText: {
-    color: '#ffffffff',
-    fontWeight: '700',
+    color: '#ffffff',
+    fontWeight: '800',
+    fontSize: 16,
   },
   cancelBtn: {
     padding: 16,
