@@ -1,6 +1,6 @@
-# BunkSafe v1.0.0 🛡️
+# BunkSafe v2.0.0 🚀
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS-lightgrey?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![Privacy](https://img.shields.io/badge/data-local%20only-success?style=flat-square)
@@ -13,13 +13,11 @@ Bunk Safe is a fully private, locally-run React Native mobile application for st
 ## Features ✨
 
 - **100% Private:** Your student credentials (USN & DOB) and academic records never leave your device. All data is stored locally using `AsyncStorage`.
-- **Automated Background Sync:** Uses a headless WebView to authenticate and extract the latest CIE and Attendance records directly from the student portal.
-- **Attendance Tracker:** Visualizes subject attendance with color-coded indicators, a live overall average summary, and a "bunks remaining" counter per subject.
-- **CIE Dashboard:** Dynamically extracts and presents T1, T2, Q1, Q2, IL1, IL2, and Total CIE marks with color-coded bar charts.
-- **Pull-to-Refresh:** Swipe down on any tab to trigger a fresh sync from the portal.
-- **Sleek Onboarding:** A smooth, paginated onboarding experience highlighting the privacy-first approach.
-- **Offline First:** Once synced, you can view your dashboard fully offline.
-- **Auto Update Alerts:** Notifies you on startup when a new version is available on GitHub Releases.
+- **Parallel Deep Fetch:** The native `eval()` engine uses pure HTTP string scraping to fetch all CIE and Attendance data seamlessly in parallel within 3 seconds.
+- **Detailed Analytics:** Visualizes subject attendance with native grids and taps down to exact daily calendar history (Absent / Present).
+- **CIE Dashboard:** Dynamically extracts and presents T1, T2, Q1, Q2 and Total CIE marks with adaptive color-coded grids.
+- **Background Watchers:** Smart headless notifications dispatch local alerts to your lockscreen if data hasn't synced in 24 hours.
+- **Offline First:** Once synced, you can view your dashboard fully offline without network access.
 
 ## Screenshots 📱
 
@@ -44,10 +42,9 @@ Bunk Safe is a fully private, locally-run React Native mobile application for st
 2. **Local Storage Setup:** Credentials are saved strictly on device storage and never transmitted externally.
 3. **Automated Scraping:** When the user taps the refresh icon (or pulls down to refresh):
    - A hidden `WebView` instance navigates to the portal.
-   - Using injected JavaScript, it automates filling the login form.
-   - It navigates to the dashboard, collects subject detail links, and iterates through each page to extract HTML structures.
-   - `AmCharts` JSON metadata in the source is intercepted directly to retrieve precise assessment values.
-4. **Dashboard Render:** The native UI instantly reflects the updated, locally saved JSON data.
+   - Using injected JavaScript, it bypasses the heavy web UI and iterates `window.fetch()` against the internal portal APIs instantly.
+   - It intercepts nested arrays natively to extract raw JSON variables before DOM hydration finishes.
+4. **Dashboard Render:** The native UI instantly reflects the updated, locally saved JSON data efficiently.
 
 ## Attendance Logic 📊
 
@@ -92,9 +89,9 @@ This app is built precisely because many wrapper apps exist that send user crede
 - [x] Attendance tracker with progress bars
 - [x] CIE marks dashboard with bar charts
 - [x] Pull-to-refresh on all tabs
-- [x] Bunks remaining counter
-- [x] Overall attendance summary card
-- [ ] Automatic update notifications via GitHub Releases
+- [x] Intelligent Deep URL Scraping 
+- [x] 2x2 Detailed Subject History Breakdown
+- [x] Background Fetch Alerts Configured
 - [ ] Bunk calculator tool (reverse engineer: "how many can I miss?")
 - [ ] Biometric / PIN app lock
 - [ ] Android home screen widget

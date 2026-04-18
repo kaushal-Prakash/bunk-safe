@@ -430,18 +430,18 @@ function Onboarding({ onComplete, saveProfile }: any) {
 
   const slides = [
     {
-      title: "BunkSafe.",
-      tag: "Never miss a safe attendance threshold again.",
+      title: "BunkSafe 2.0",
+      tag: "Never miss a safe attendance threshold again. Rebuilt from the ground up to be insanely fast.",
       icon: "shield-checkmark",
     },
     {
-      title: "100% Private.",
-      tag: "Your data is never stored on any server. Everything is scraped and saved locally on your device.",
-      icon: "lock-closed",
+      title: "Deep Analytics",
+      tag: "Interactive grids perfectly plot your CIE maps and detail exactly which days you missed class.",
+      icon: "pie-chart",
     },
     {
-      title: "Auto Sync.",
-      tag: "We connect directly to your student portal in the background to fetch your latest CIE and Attendance.",
+      title: "Smart Syncs",
+      tag: "Our local-only background scraper runs parallel sweeps, syncing your entire portal in just 3 seconds.",
       icon: "sync-circle",
     }
   ];
