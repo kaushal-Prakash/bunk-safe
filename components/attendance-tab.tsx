@@ -13,29 +13,7 @@ interface Props {
   refreshing?: boolean;
 }
 
-function computeBunksInfo(percentage: number): { text: string; color: string } {
-  // Standard: need >= 75% to be safe
-  // Formula: classes_needed = ceil((0.75 * (total+x) - attended) / 0.25) where attended = pct/100 * total
-  // Simpler heuristic from percentage only:
-  if (percentage >= 75) {
-    // How many can they bunk: if current = p/100 * total = attended, need attended/(total+x) >= 0.75
-    // x = floor((attended - 0.75*total) / 0.75) = floor((p - 75) / 75 * total)
-    // Without total, approximate assuming total ~40 classes typical semester
-    const approxTotal = 40;
-    const attended = Math.round((percentage / 100) * approxTotal);
-    const canBunk = Math.floor((attended - 0.75 * approxTotal) / 0.75);
-    if (canBunk <= 0) return { text: 'On the edge – don\'t miss any', color: '#f59e0b' };
-    return { text: `Can bunk ~${canBunk} more safely`, color: '#10b981' };
-  } else {
-    const approxTotal = 40;
-    const attended = Math.round((percentage / 100) * approxTotal);
-    // Need: (attended + x) / (approxTotal + x) >= 0.75
-    // attended + x >= 0.75 * approxTotal + 0.75x => 0.25x >= 0.75*approxTotal - attended
-    // x >= (0.75 * approxTotal - attended) / 0.25
-    const needed = Math.ceil((0.75 * approxTotal - attended) / 0.25);
-    return { text: `Attend ~${needed} more to be safe`, color: '#ef4444' };
-  }
-}
+// Removed computeBunksInfo function as per requirements
 
 export function AttendanceTab({ subjects, onRefresh, refreshing = false }: Props) {
   const safeSubjects = subjects.filter(s => (parseInt(s.attendance) || 0) >= 75);
@@ -99,7 +77,6 @@ export function AttendanceTab({ subjects, onRefresh, refreshing = false }: Props
       {subjects.map((subject, index) => {
         const percentage = parseInt(subject.attendance.replace('%', '')) || 0;
         const isWarning = percentage < 75;
-        const bunksInfo = computeBunksInfo(percentage);
 
         return (
           <Animated.View
@@ -140,10 +117,6 @@ export function AttendanceTab({ subjects, onRefresh, refreshing = false }: Props
                 <Text style={[styles.statusLabel, isWarning ? styles.statusLabelWarning : styles.statusLabelSafe]}>
                   {isWarning ? 'Below Threshold (< 75%)' : 'Safe Attendance (≥ 75%)'}
                 </Text>
-              </View>
-              <View style={styles.bunksHint}>
-                <Ionicons name="information-circle-outline" size={13} color={bunksInfo.color} />
-                <Text style={[styles.bunksText, { color: bunksInfo.color }]}>{bunksInfo.text}</Text>
               </View>
             </View>
           </Animated.View>
@@ -358,15 +331,5 @@ const styles = StyleSheet.create({
   },
   statusLabelWarning: {
     color: '#ef4444',
-  },
-  bunksHint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingLeft: 2,
-  },
-  bunksText: {
-    fontSize: 12,
-    fontWeight: '500',
   },
 });

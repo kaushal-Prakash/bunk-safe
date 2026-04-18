@@ -40,15 +40,16 @@ export function CieTab({ subjects, onRefresh, refreshing = false }: Props) {
 
       {subjects.map((subject, index) => {
         const total = parseFloat(subject.cie.total) || 0;
-        const maxTotal = 50; // Standard CIE max
+        const maxTotal = 100; // Updated max to 100
 
-        const components = [
-          { label: 'T1', value: subject.cie.t1, max: 25 },
-          { label: 'T2', value: subject.cie.t2, max: 25 },
-          { label: 'Q1', value: subject.cie.q1, max: 5 },
-          { label: 'Q2', value: subject.cie.q2, max: 5 },
-          { label: 'IL1', value: subject.cie.il1, max: 5 },
-          { label: 'IL2', value: subject.cie.il2, max: 5 },
+        // Use the dynamically parsed marks array if it exists, otherwise fallback to old hardcoded fields if needed
+        const components: { label: string, value: string, max: number }[] = subject.cie.marks || [
+          { label: 'T1', value: subject.cie.t1 || '-', max: 25 },
+          { label: 'T2', value: subject.cie.t2 || '-', max: 25 },
+          { label: 'Q1', value: subject.cie.q1 || '-', max: 5 },
+          { label: 'Q2', value: subject.cie.q2 || '-', max: 5 },
+          { label: 'IL1', value: subject.cie.il1 || '-', max: 5 },
+          { label: 'IL2', value: subject.cie.il2 || '-', max: 5 },
         ];
 
         const totalPct = (total / maxTotal) * 100;
@@ -88,29 +89,32 @@ export function CieTab({ subjects, onRefresh, refreshing = false }: Props) {
             <View style={styles.divider} />
 
             {/* Bar chart */}
-            <View style={styles.chartArea}>
-              {components.map((comp) => {
-                const val = parseFloat(comp.value || '0') || 0;
-                const barPct = comp.max > 0 ? (val / comp.max) * 100 : 0;
-                const barHeightPx = Math.max((barPct / 100) * 80, val > 0 ? 4 : 2);
-                const [c1, c2] = getBarColor(val, comp.max);
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartScrollView}>
+              <View style={styles.chartArea}>
+                {components.map((comp) => {
+                  const val = parseFloat(comp.value || '0') || 0;
+                  const isNotTaken = comp.value === 'Not Taken';
+                  const barPct = comp.max > 0 && !isNotTaken ? (val / comp.max) * 100 : 0;
+                  const barHeightPx = Math.max((barPct / 100) * 80, (val > 0 && !isNotTaken) ? 4 : 2);
+                  const [c1, c2] = getBarColor(val, comp.max);
 
-                return (
-                  <View key={comp.label} style={styles.barContainer}>
-                    <View style={styles.barWrapper}>
-                      <LinearGradient
-                        colors={[c1, c2]}
-                        style={[styles.bar, { height: barHeightPx }]}
-                      />
+                  return (
+                    <View key={comp.label} style={styles.barContainer}>
+                      <View style={styles.barWrapper}>
+                        <LinearGradient
+                          colors={[isNotTaken ? '#475569' : c1, isNotTaken ? '#334155' : c2]}
+                          style={[styles.bar, { height: barHeightPx }]}
+                        />
+                      </View>
+                      <Text style={styles.barLabel} numberOfLines={1}>{comp.label}</Text>
+                      <Text style={[styles.barValue, { color: isNotTaken ? '#64748b' : c1, fontSize: isNotTaken ? 9 : 10 }]}>
+                        {comp.value === '-' || !comp.value ? '—' : isNotTaken ? 'N/A' : comp.value}
+                      </Text>
                     </View>
-                    <Text style={styles.barLabel}>{comp.label}</Text>
-                    <Text style={[styles.barValue, { color: c1 }]}>
-                      {comp.value === '-' || !comp.value ? '—' : comp.value}
-                    </Text>
-                  </View>
-                );
-              })}
-            </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
 
             {/* Legend */}
             <View style={styles.legend}>
@@ -181,21 +185,22 @@ const styles = StyleSheet.create({
     maxWidth: width * 0.5,
   },
   totalBadge: {
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: 'center',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    alignItems: 'baseline',
     flexDirection: 'row',
-    gap: 2,
+    gap: 4,
+    backgroundColor: 'transparent',
+    flexShrink: 1,
   },
   totalValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
   },
   totalLabel: {
     fontSize: 12,
     fontWeight: '700',
-    marginTop: 4,
   },
   totalProgressTrack: {
     height: 6,
@@ -227,16 +232,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     marginBottom: 16,
   },
+  chartScrollView: {
+    minWidth: '100%',
+  },
   chartArea: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'flex-end',
     height: 120,
     paddingTop: 10,
+    gap: 16,
+    paddingRight: 10,
   },
   barContainer: {
     alignItems: 'center',
-    flex: 1,
+    width: 20,
   },
   barWrapper: {
     height: 80,

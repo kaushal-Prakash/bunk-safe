@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
-  Platform
+  Platform,
+  Keyboard
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import Animated, { 
@@ -24,6 +25,7 @@ import * as Haptics from 'expo-haptics';
 import { useStorage, AcademicData, Subject } from '@/hooks/use-storage';
 import { ScraperScripts } from '@/services/scraper-service';
 import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Components
 import { AttendanceTab } from '@/components/attendance-tab';
@@ -60,6 +62,19 @@ export default function Index() {
   const webViewRef = useRef<WebView>(null);
   const watchdogRef = useRef<any>(null);
   const [webViewUrl, setWebViewUrl] = useState('https://parents.nie.ac.in/index.php');
+  
+  // Portal View State
+  const [showPortal, setShowPortal] = useState(false);
+  const portalWebViewRef = useRef<WebView>(null);
+  
+  const insets = useSafeAreaInsets();
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   // Update relative time every 30s
   useEffect(() => {
@@ -75,7 +90,7 @@ export default function Index() {
     if (watchdogRef.current) clearTimeout(watchdogRef.current);
     watchdogRef.current = setTimeout(() => {
       setSyncStatus('error');
-      setSyncError('Sync timed out. Please check your internet or USN/DOB.');
+      setSyncError('Sync timed out. The portal might be down or you may need to change your network.');
     }, 45000); // 45s global timeout
   };
 
@@ -116,6 +131,9 @@ export default function Index() {
       if (type === 'ERROR') {
         setSyncStatus('error');
         setSyncError(data);
+      } else if (type === 'LOGIN_ALREADY') {
+        setSyncStatus('fetching_list');
+        webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
       } else if (type === 'RETRY_LIST') {
         setTimeout(() => {
           webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
@@ -163,7 +181,7 @@ export default function Index() {
   };
 
   const onWebViewLoadEnd = () => {
-    // Add a 2s delay after page load to let portal JS finish rendering
+    // Inject scripts with minimal delay, relying on the scraper retry loops
     setTimeout(() => {
       if (syncStatus === 'logging_in') {
         webViewRef.current?.injectJavaScript(ScraperScripts.login(profile!.usn, profile!.dob));
@@ -173,7 +191,7 @@ export default function Index() {
       } else if (syncStatus === 'fetching_details') {
         webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectDetails);
       }
-    }, 2500);
+    }, 500); // reduced from 2500ms
   };
 
   const finishSync = async (data: Subject[]) => {
@@ -251,8 +269,8 @@ export default function Index() {
       )}
 
       {/* Dashboard Top bar */}
-      <View style={styles.header}>
-        <View>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top + 10, 60) }]}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.greeting}>Hey, {profile?.name.split(' ')[0]} 👋</Text>
           <Text style={styles.lastUpdate}>
             {profile?.academicData 
@@ -260,17 +278,25 @@ export default function Index() {
               : 'Sync required to view data'}
           </Text>
         </View>
-        <TouchableOpacity 
-          style={[styles.syncBtn, syncStatus !== 'idle' && styles.syncBtnDisabled]} 
-          onPress={startSync} 
-          disabled={syncStatus !== 'idle'}
-        >
-          <Ionicons name="refresh" size={20} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity 
+            style={styles.portalActionBtn} 
+            onPress={() => setShowPortal(true)} 
+          >
+            <Ionicons name="globe-outline" size={20} color="#10b981" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.syncBtn, syncStatus !== 'idle' && styles.syncBtnDisabled]} 
+            onPress={startSync} 
+            disabled={syncStatus !== 'idle'}
+          >
+            <Ionicons name="refresh" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Page Content */}
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: insets.bottom + 100 }]}>
         {activeTab === 'attendance' && (
            profile?.academicData ? (
              <AttendanceTab 
@@ -303,26 +329,56 @@ export default function Index() {
       </View>
 
       {/* Bottom Tab Bar */}
-      <View style={styles.bottomNav}>
-        <NavButton 
-          active={activeTab === 'attendance'} 
-          icon="stats-chart" 
-          label="Attendance" 
-          onPress={() => setActiveTab('attendance')} 
-        />
-        <NavButton 
-          active={activeTab === 'cie'} 
-          icon="document-text" 
-          label="CIE" 
-          onPress={() => setActiveTab('cie')} 
-        />
-        <NavButton 
-          active={activeTab === 'settings'} 
-          icon="settings" 
-          label="Settings" 
-          onPress={() => setActiveTab('settings')} 
-        />
-      </View>
+      {!isKeyboardVisible && (
+        <View style={[styles.bottomNav, { bottom: (Platform.OS === 'ios' ? 40 : 20) + insets.bottom }]}>
+          <NavButton 
+            active={activeTab === 'attendance'} 
+            icon="stats-chart" 
+            label="Attendance" 
+            onPress={() => setActiveTab('attendance')} 
+          />
+          <NavButton 
+            active={activeTab === 'cie'} 
+            icon="document-text" 
+            label="CIE" 
+            onPress={() => setActiveTab('cie')} 
+          />
+          <NavButton 
+            active={activeTab === 'settings'} 
+            icon="settings" 
+            label="Settings" 
+            onPress={() => setActiveTab('settings')} 
+          />
+        </View>
+      )}
+      
+      {/* Portal Overlay */}
+      {showPortal && profile && (
+        <Animated.View entering={FadeInDown} exiting={FadeOut} style={styles.portalOverlay}>
+          <View style={[styles.portalHeader, { paddingTop: insets.top }]}>
+             <Ionicons name="globe-outline" size={24} color="#10b981" />
+             <Text style={styles.portalTitle}>Student Portal</Text>
+             <TouchableOpacity style={styles.portalCloseBtn} onPress={() => setShowPortal(false)}>
+               <Ionicons name="close-circle" size={32} color="#64748b" />
+             </TouchableOpacity>
+          </View>
+          <WebView
+            ref={portalWebViewRef}
+            source={{ uri: 'https://parents.nie.ac.in/index.php' }}
+            style={{ flex: 1 }}
+            onLoadEnd={() => {
+               // Auto login
+               portalWebViewRef.current?.injectJavaScript(`
+                 const userField = document.querySelector('#username');
+                 if (userField && !userField.value) {
+                   ${ScraperScripts.login(profile.usn, profile.dob)}
+                 }
+                 true;
+               `);
+            }}
+          />
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -429,6 +485,9 @@ function Onboarding({ onComplete, saveProfile }: any) {
                value={dob}
                onChangeText={setDob}
              />
+             <Text style={styles.onboardHint}>
+               Format required: DD-MM-YYYY or YYYY-MM-DD. 
+             </Text>
              <TouchableOpacity style={styles.primaryBtn} onPress={handleFinish}>
                <Text style={styles.primaryBtnText}>Access Dashboard</Text>
              </TouchableOpacity>
@@ -445,12 +504,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
   },
   header: {
-    paddingTop: 60,
     paddingHorizontal: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  portalActionBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   greeting: {
     fontSize: 24,
@@ -480,7 +553,6 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 40 : 20,
     left: 20,
     right: 20,
     height: 70,
@@ -662,5 +734,35 @@ const styles = StyleSheet.create({
   emptySyncText: {
     color: '#3b82f6',
     fontWeight: '700',
+  },
+  onboardHint: {
+    color: '#94a3b8',
+    fontSize: 12,
+    paddingLeft: 4,
+    marginTop: -8,
+  },
+  portalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#0f172a',
+    zIndex: 2000,
+  },
+  portalHeader: {
+    backgroundColor: '#0f172a',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  portalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginLeft: 12,
+    flex: 1,
+  },
+  portalCloseBtn: {
+    padding: 4,
   }
 });

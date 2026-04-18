@@ -6,7 +6,8 @@ import {
   TouchableOpacity, 
   TextInput, 
   ScrollView, 
-  Alert 
+  Alert,
+  Platform
 } from 'react-native';
 import { UserProfile } from '@/hooks/use-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,73 +35,73 @@ export function SettingsTab({ profile, onUpdate, onClear }: Props) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.header}>Settings</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Profile Information</Text>
-        
-        {editing ? (
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.name}
-                onChangeText={(t) => setFormData(p => ({ ...p, name: t }))}
-              />
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Profile Information</Text>
+          
+          {editing ? (
+            <View style={styles.form}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Full Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.name}
+                  onChangeText={(t) => setFormData(p => ({ ...p, name: t }))}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>USN</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.usn}
+                  onChangeText={(t) => setFormData(p => ({ ...p, usn: t }))}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>DOB (DD-MM-YYYY)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.dob}
+                  onChangeText={(t) => setFormData(p => ({ ...p, dob: t }))}
+                />
+              </View>
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+                <LinearGradient colors={['#3b82f6', '#2563eb']} style={styles.gradientBtn}>
+                  <Text style={styles.btnText}>Save Changes</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditing(false)}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>USN</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.usn}
-                onChangeText={(t) => setFormData(p => ({ ...p, usn: t }))}
-              />
+          ) : (
+            <View style={styles.profileCard}>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Name</Text>
+                <Text style={styles.infoValue}>{profile.name}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>USN</Text>
+                <Text style={styles.infoValue}>{profile.usn}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>DOB</Text>
+                <Text style={styles.infoValue}>{profile.dob}</Text>
+              </View>
+              <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(true)}>
+                <Ionicons name="create-outline" size={20} color="#3b82f6" />
+                <Text style={styles.editText}>Edit Profile</Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>DOB (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.input}
-                value={formData.dob}
-                onChangeText={(t) => setFormData(p => ({ ...p, dob: t }))}
-              />
-            </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <LinearGradient colors={['#3b82f6', '#2563eb']} style={styles.gradientBtn}>
-                <Text style={styles.btnText}>Save Changes</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditing(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.profileCard}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Name</Text>
-              <Text style={styles.infoValue}>{profile.name}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>USN</Text>
-              <Text style={styles.infoValue}>{profile.usn}</Text>
-            </View>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>DOB</Text>
-              <Text style={styles.infoValue}>{profile.dob}</Text>
-            </View>
-            <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(true)}>
-              <Ionicons name="create-outline" size={20} color="#3b82f6" />
-              <Text style={styles.editText}>Edit Profile</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+          )}
+        </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Account</Text>
-        <TouchableOpacity style={styles.logoutBtn} onPress={onClear}>
-          <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-          <Text style={styles.logoutText}>Reset App Data</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <TouchableOpacity style={styles.logoutBtn} onPress={onClear}>
+            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            <Text style={styles.logoutText}>Reset App Data</Text>
+          </TouchableOpacity>
+        </View>
 
       <View style={styles.footer}>
         <Text style={styles.devTag}>Developed with ❤️ by</Text>
@@ -117,7 +118,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 120,
+    paddingBottom: 250,
   },
   header: {
     fontSize: 28,
@@ -199,15 +200,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btnText: {
-    color: '#fff',
+    color: '#ffffffff',
     fontWeight: '700',
   },
   cancelBtn: {
     padding: 16,
     alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: 12,
+    marginTop: 8,
   },
   cancelText: {
-    color: '#64748b',
+    color: '#ef4444',
+    fontWeight: '800',
   },
   logoutBtn: {
     flexDirection: 'row',

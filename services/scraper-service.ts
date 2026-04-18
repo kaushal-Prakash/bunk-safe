@@ -30,36 +30,43 @@ export const ScraperScripts = {
         };
 
         notify('Scraper: Starting login for ${usn}');
-        const userField = document.querySelector('#username');
-        const daySelect = document.querySelector('#dd');
-        const monthSelect = document.querySelector('#mm');
-        const yearSelect = document.querySelector('#yyyy');
-        const submitBtn = document.querySelector('input[type="submit"]');
-
-        if (userField && daySelect && monthSelect && yearSelect) {
-          notify('Scraper: Found all form fields');
-          userField.value = "${usn}";
+        let attempts = 0;
+        
+        let checkInterval = setInterval(() => {
+          attempts++;
+          const bodyText = document.body ? document.body.innerText : '';
+          const isDashboard = bodyText.includes('Course Code') || document.querySelector('table.dash_even_row');
           
-          // Set dropdowns
-          daySelect.value = "${day} "; // NIE Portal uses "DD " value
-          notify('Scraper: Set Day to ' + daySelect.value);
-          
-          monthSelect.value = "${month}";
-          notify('Scraper: Set Month to ' + monthSelect.value);
-          
-          yearSelect.value = "${year}";
-          notify('Scraper: Set Year to ' + yearSelect.value);
-          
-          if (typeof putdate === 'function') {
-            notify('Scraper: Triggering putdate()');
-            putdate();
+          if (isDashboard) {
+             clearInterval(checkInterval);
+             notify('Scraper: Already on dashboard');
+             window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOGIN_ALREADY' }));
+             return;
           }
-          
-          notify('Scraper: Clicking submit button');
-          submitBtn.click();
-        } else {
-          notify('Scraper ERROR: Could not find one or more form fields');
-        }
+
+          const userField = document.querySelector('#username');
+          const daySelect = document.querySelector('#dd');
+          const monthSelect = document.querySelector('#mm');
+          const yearSelect = document.querySelector('#yyyy');
+          const submitBtn = document.querySelector('input[type="submit"]');
+
+          if (userField && daySelect && monthSelect && yearSelect && submitBtn) {
+            clearInterval(checkInterval);
+            notify('Scraper: Found all form fields');
+            userField.value = "${usn}";
+            daySelect.value = "${day} "; // NIE Portal uses "DD " value
+            monthSelect.value = "${month}";
+            yearSelect.value = "${year}";
+            
+            if (typeof putdate === 'function') putdate();
+            notify('Scraper: Clicking submit button');
+            submitBtn.click();
+          } else if (attempts >= 10) {
+            clearInterval(checkInterval);
+            notify('Scraper ERROR: Could not find one or more form fields');
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ERROR', data: 'Login fields not found on portal.' }));
+          }
+        }, 800);
       })();
     `;
   },
@@ -168,7 +175,7 @@ export const ScraperScripts = {
 
       let cieValue = "0";
       let attValue = "0%";
-      let t1 = "-", t2 = "-", q1 = "-", q2 = "-", il1 = "-", il2 = "-";
+      let marksArray = [];
 
       // Try to parse chartData if it exists
       try {
@@ -178,18 +185,20 @@ export const ScraperScripts = {
            // This means wrapping unquoted keys in double quotes.
            let jsonString = scriptMatch[1]
              .replace(/([{,])\\s*([a-zA-Z0-9_]+)\\s*:/g, '$1"$2":') // Quote keys
-             .replace(/'/g, '"'); // Replace single quotes with double quotes
+             .replace(/'/g, '"') // Replace single quotes with double quotes
+             .replace(/,\\s*}/g, '}') // Remove trailing commas in objects
+             .replace(/,\\s*]/g, ']'); // Remove trailing commas in arrays
              
            const jsonData = JSON.parse(jsonString); 
            
            jsonData.forEach(item => {
-             const val = item.col1 !== undefined ? item.col1.toString() : "-";
-             if (item.xaxis === "T1") t1 = val;
-             if (item.xaxis === "T2") t2 = val;
-             if (item.xaxis === "Q1") q1 = val;
-             if (item.xaxis === "Q2") q2 = val;
-             if (item.xaxis === "IL1") il1 = val;
-             if (item.xaxis === "IL2") il2 = val;
+             let val = item.col1 !== undefined ? item.col1.toString() : "-";
+             let maxVal = item.maxmarks !== undefined ? Number(item.maxmarks) : 0;
+             if (item.col1 === 0 && item.maxmarks === 0) val = "Not Taken";
+             
+             if (item.xaxis) {
+               marksArray.push({ label: item.xaxis, value: val, max: maxVal });
+             }
            });
            notify('Scraper: Parsed chartData successfully');
         }
@@ -219,10 +228,10 @@ export const ScraperScripts = {
       }
 
       // If CIE is still 0, try to sum up the T1, Q1, etc if they exist
-      if (cieValue === "0") {
+      if (cieValue === "0" && marksArray.length > 0) {
         let total = 0;
-        [t1, t2, q1, q2, il1, il2].forEach(v => {
-          if (!isNaN(parseFloat(v))) total += parseFloat(v);
+        marksArray.forEach(m => {
+          if (!isNaN(parseFloat(m.value))) total += parseFloat(m.value);
         });
         if (total > 0) cieValue = total.toString();
       }
@@ -233,7 +242,7 @@ export const ScraperScripts = {
         type: 'SUBJECT_DETAILS',
         data: {
           cie: {
-            t1, t2, q1, q2, il1, il2,
+            marks: marksArray,
             total: cieValue
           },
           attendance: attValue

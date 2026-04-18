@@ -10,6 +10,7 @@ export interface SubjectCie {
   q2?: string;
   il1?: string;
   il2?: string;
+  marks?: { label: string; value: string; max: number }[];
   total: string;
 }
 
