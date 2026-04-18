@@ -23,7 +23,7 @@ Bunk Safe is a fully private, locally-run React Native mobile application for st
 
 | Onboarding | Attendance | CIE Marks |
 |:---:|:---:|:---:|
-| ![Onboarding](./mockups/1.jpeg) | ![Attendance](./mockups/2.jpeg) | ![CIE](./mockups/3.jpeg) |
+| ![Onboarding](./mockups/2.jpeg) | ![Attendance](./mockups/1.jpeg) | ![CIE](./mockups/3.jpeg) |
 
 ## Tech Stack 🛠️
 

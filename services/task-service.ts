@@ -1,6 +1,7 @@
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { StorageProvider } from '../hooks/storage-provider';
 
 const BKG_SYNC_TASK = 'BACKGROUND_SYNC_TASK';
@@ -54,12 +55,24 @@ TaskManager.defineTask(BKG_SYNC_TASK, async () => {
 
 export async function registerBackgroundSync() {
   try {
+    // 1. Android Specific: Channels are MANDATORY for SDK 53+ local notifications
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
+    }
+
+    // 2. Request Permissions (Handles Expo Go limitation gracefully)
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== 'granted') {
-      console.log('Push permissions denied.');
+      console.log('Notification permissions denied.');
       return;
     }
 
+    // 3. Register Background Task
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BKG_SYNC_TASK);
     if (!isRegistered) {
       await BackgroundFetch.registerTaskAsync(BKG_SYNC_TASK, {
@@ -69,7 +82,13 @@ export async function registerBackgroundSync() {
       });
       console.log('Background Sync Task Registered!');
     }
-  } catch (e) {
-    console.error('Failed to register task:', e);
+  } catch (e: any) {
+    // Expo Go SDK 53+ on Android triggers a loud error for remote notifications. 
+    // We catch it here so it doesn't break the app initialization.
+    if (e.message?.includes('removed from Expo Go')) {
+      console.warn('⚠️ Push Notifications Error: Expo Go (SDK 53/54) does not support remote push tokens. Local notifications may still work.');
+    } else {
+      console.error('Failed to register task:', e);
+    }
   }
 }
