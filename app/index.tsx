@@ -237,7 +237,7 @@ export default function Index() {
       {/* Dashboard Top bar */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top + 10, 60) }]}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>Hey, {profile?.name.split(' ')[0]} 👋</Text>
+          <Text style={styles.greeting}>Hey, {(profile?.name || 'Student').split(' ')[0]} 👋</Text>
           <Text style={styles.lastUpdate}>
             {profile?.academicData 
               ? `Last synced: ${relativeTime || getRelativeTime(profile.academicData.lastUpdated)}`
@@ -285,9 +285,9 @@ export default function Index() {
              <EmptyState onSync={startSync} />
            )
         )}
-        {activeTab === 'settings' && (
+        {activeTab === 'settings' && profile && (
           <SettingsTab 
-            profile={profile!} 
+            profile={profile} 
             onUpdate={saveProfile} 
             onClear={clearProfile} 
           />
