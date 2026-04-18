@@ -56,9 +56,6 @@ export default function Index() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [syncProgress, setSyncProgress] = useState(0);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [subjectsToFetch, setSubjectsToFetch] = useState<any[]>([]);
-  const [currentSubjectIndex, setCurrentSubjectIndex] = useState(-1);
-  const [tempAcademicData, setTempAcademicData] = useState<Subject[]>([]);
   
   const webViewRef = useRef<WebView>(null);
   const watchdogRef = useRef<any>(null);
@@ -109,7 +106,6 @@ export default function Index() {
     setSyncError(null);
     setSyncStatus('logging_in');
     setSyncProgress(0.1);
-    setTempAcademicData([]);
     setWebViewUrl('https://parents.nie.ac.in/index.php');
     
     // Force a reload to guarantee onLoadEnd fires, as the URL might not have changed
@@ -143,38 +139,9 @@ export default function Index() {
         setTimeout(() => {
           webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectDetails);
         }, 1500);
-      } else if (type === 'SUBJECT_LIST') {
-        setSubjectsToFetch(data);
-        setSyncStatus('fetching_details');
-        setSyncProgress(0.3);
-        if (data.length > 0) {
-          setCurrentSubjectIndex(0);
-          webViewRef.current?.injectJavaScript(`window.location.href = "${data[0].cieLink}"; true;`);
-        } else {
-          finishSync([]);
-        }
-      } else if (type === 'SUBJECT_DETAILS') {
-        const subject = subjectsToFetch[currentSubjectIndex];
-        const newDetails: Subject = {
-          code: subject.code,
-          name: subject.name,
-          attendance: data.attendance,
-          cie: data.cie
-        };
-        
-        const updatedTemp = [...tempAcademicData, newDetails];
-        setTempAcademicData(updatedTemp);
-        
-        const nextIndex = currentSubjectIndex + 1;
-        const progress = 0.3 + (nextIndex / subjectsToFetch.length) * 0.6;
-        setSyncProgress(progress);
-
-        if (nextIndex < subjectsToFetch.length) {
-          setCurrentSubjectIndex(nextIndex);
-          webViewRef.current?.injectJavaScript(`window.location.href = "${subjectsToFetch[nextIndex].cieLink}"; true;`);
-        } else {
-          finishSync(updatedTemp);
-        }
+      } else if (type === 'SYNC_COMPLETE_FULL') {
+        setSyncProgress(0.9);
+        finishSync(data);
       }
     } catch (e) {
       console.error('Scraper Message Error:', e);
@@ -189,8 +156,6 @@ export default function Index() {
         setSyncStatus('fetching_list');
       } else if (syncStatus === 'fetching_list') {
         webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
-      } else if (syncStatus === 'fetching_details') {
-        webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectDetails);
       }
     }, 500); // reduced from 2500ms
   };

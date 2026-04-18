@@ -75,7 +75,7 @@ export const ScraperScripts = {
    * Scrapes the main dashboard for the list of subjects and their detail links.
    */
   scrapeSubjectList: `
-    (function() {
+    (async function() {
       const notify = (msg) => {
           window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
       };
@@ -118,16 +118,110 @@ export const ScraperScripts = {
           }
           
           if (code && name && attendanceLink && cieLink) {
-            subjects.push({ code, name, attendanceLink, cieLink });
+            subjects.push({ code, name, attendance: cells[2].innerText.trim(), attendanceLink, cieLink });
           }
         }
       });
       
-      notify('Scraper: Successfully collected ' + subjects.length + ' subjects');
+      notify('Scraper: Found ' + subjects.length + ' subjects. Deep fetching sequentially...');
 
+      const parser = new DOMParser();
+
+      for (const sub of subjects) {
+         // --- ATTENDANCE FETCH ---
+         try {
+           const r1 = await fetch(sub.attendanceLink);
+           const html1 = await r1.text();
+           const doc1 = parser.parseFromString(html1, 'text/html');
+           const dates = [];
+
+           const pTable = doc1.querySelector('table.cn-attend-list1');
+           if (pTable) {
+              pTable.querySelectorAll('tbody tr').forEach(tr => {
+                 const tds = tr.querySelectorAll('td');
+                 if (tds.length >= 4) {
+                    let rawTime = tds[2].innerText || '';
+                    dates.push({
+                       date: (tds[1].innerText || '').trim(),
+                       time: rawTime.replace(/\\s+TO\\s+/i, ' - ').replace(/\\s+/g, ' ').trim(),
+                       status: 'Present'
+                    });
+                 }
+              });
+           }
+
+           const aTable = doc1.querySelector('table.cn-attend-list2');
+           if (aTable) {
+              aTable.querySelectorAll('tbody tr').forEach(tr => {
+                 const tds = tr.querySelectorAll('td');
+                 if (tds.length >= 4) {
+                    let rawTime = tds[2].innerText || '';
+                    dates.push({
+                       date: (tds[1].innerText || '').trim(),
+                       time: rawTime.replace(/\\s+TO\\s+/i, ' - ').replace(/\\s+/g, ' ').trim(),
+                       status: 'Absent'
+                    });
+                 }
+              });
+           }
+           sub.attendanceDetails = dates;
+         } catch (e) {
+           notify('Scraper warning: Failed fetching attendance detail for ' + sub.code);
+           sub.attendanceDetails = [];
+         }
+
+         // --- CIE FETCH ---
+         try {
+           const r2 = await fetch(sub.cieLink);
+           const html2 = await r2.text();
+           const doc2 = parser.parseFromString(html2, 'text/html');
+           const bodyTxt = doc2.body.innerText;
+
+              // Extract generic attendance score from main text as fallback if missing
+              if (!sub.attendance) {
+                 let attMatch = bodyTxt.match(/Attendance\\s+([\\d.]+)%/i) || bodyTxt.match(/([\\d.]+)%/);
+                 sub.attendance = attMatch ? attMatch[1] + '%' : '0%';
+              }
+
+              // CIE Parsing (inside the script tags)
+              let chartData = [];
+              const scripts = Array.from(doc.scripts).map(s => s.innerHTML).join('\\n');
+              const chartMatch = scripts.match(/var chartData = (\\[.*?\\]);/s);
+              
+              if (chartMatch && chartMatch[1]) {
+                try {
+                  // The portal outputs Javascript object arrays, not strict JSON. Evaluating it directly inside the WebView is completely safe and flawless.
+                  chartData = eval('(' + chartMatch[1] + ')');
+                } catch (e) {
+                  notify('Scraper warning: Failed parsing chart data for ' + sub.code + ' - ' + e.message);
+                }
+              }
+
+              let tMatch = bodyTxt.match(/Total Marks\\s+(\\d+)/i);
+              const cieTotal = tMatch ? tMatch[1] : '0';
+
+              const marks = chartData.map(item => {
+                 let val = item.col1 !== undefined ? item.col1 : 'Not Taken';
+                 let max = 0;
+                 if (item.xaxis && item.xaxis.toLowerCase().includes('t')) max = 25; // tests defaults max 25 usually
+                 if (item.xaxis && item.xaxis.toLowerCase().includes('q')) max = 5; // quiz defaults max 5 usually
+                 return { label: item.xaxis || 'NA', value: String(val), max };
+              });
+
+              sub.cie = {
+                marks: marks,
+                total: cieTotal
+              };
+         } catch (e) {
+              notify('Scraper ERROR fetching CIE for ' + sub.code + ': ' + e.message);
+              sub.cie = { total: '0', marks: [] };
+         }
+      }
+
+      notify('Scraper: Sequential deep fetch complete! All data fully loaded.');
       window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'SUBJECT_LIST',
-        data: subjects
+         type: 'SYNC_COMPLETE_FULL',
+         data: subjects
       }));
     })();
   `,

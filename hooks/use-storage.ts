@@ -14,10 +14,19 @@ export interface SubjectCie {
   total: string;
 }
 
+export interface SubjectAttendanceDetail {
+  date: string;
+  time: string;
+  status: 'Present' | 'Absent' | string;
+}
+
 export interface Subject {
   code: string;
   name: string;
   attendance: string;
+  attendanceLink?: string;
+  cieLink?: string;
+  attendanceDetails?: SubjectAttendanceDetail[];
   cie: SubjectCie;
 }
 
