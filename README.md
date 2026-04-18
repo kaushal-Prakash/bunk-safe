@@ -16,7 +16,6 @@ Bunk Safe is a fully private, locally-run React Native mobile application for st
 - **Parallel Deep Fetch:** The native `eval()` engine uses pure HTTP string scraping to fetch all CIE and Attendance data seamlessly in parallel within 3 seconds.
 - **Detailed Analytics:** Visualizes subject attendance with native grids and taps down to exact daily calendar history (Absent / Present).
 - **CIE Dashboard:** Dynamically extracts and presents T1, T2, Q1, Q2 and Total CIE marks with adaptive color-coded grids.
-- **Background Watchers:** Smart headless notifications dispatch local alerts to your lockscreen if data hasn't synced in 24 hours.
 - **Offline First:** Once synced, you can view your dashboard fully offline without network access.
 
 ## Screenshots 📱
@@ -91,7 +90,6 @@ This app is built precisely because many wrapper apps exist that send user crede
 - [x] Pull-to-refresh on all tabs
 - [x] Intelligent Deep URL Scraping 
 - [x] 2x2 Detailed Subject History Breakdown
-- [x] Background Fetch Alerts Configured
 - [ ] Bunk calculator tool (reverse engineer: "how many can I miss?")
 - [ ] Biometric / PIN app lock
 - [ ] Android home screen widget
