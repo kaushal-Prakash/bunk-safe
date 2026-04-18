@@ -185,16 +185,17 @@ export const ScraperScripts = {
 
               // CIE Parsing (inside the script tags)
               let chartData = [];
-              const scripts = Array.from(doc.scripts).map(s => s.innerHTML).join('\\n');
-              const chartMatch = scripts.match(/var chartData = (\\[.*?\\]);/s);
+              const chartMatch = html2.match(/var\\s+chartData\\s*=\\s*(\\[[\\s\\S]*?\\])\\s*;/i);
               
               if (chartMatch && chartMatch[1]) {
                 try {
                   // The portal outputs Javascript object arrays, not strict JSON. Evaluating it directly inside the WebView is completely safe and flawless.
                   chartData = eval('(' + chartMatch[1] + ')');
                 } catch (e) {
-                  notify('Scraper warning: Failed parsing chart data for ' + sub.code + ' - ' + e.message);
+                  notify('Scraper warning: Failed evaluating chart data for ' + sub.code + ' - ' + e.message);
                 }
+              } else {
+                notify('Scraper warning: Could not find chartData string in HTML for ' + sub.code);
               }
 
               let tMatch = bodyTxt.match(/Total Marks\\s+(\\d+)/i);
