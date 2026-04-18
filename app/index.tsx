@@ -361,7 +361,7 @@ export default function Index() {
         onRequestClose={() => setShowPortal(false)}
       >
         <View style={styles.portalOverlay}>
-          <View style={[styles.portalHeader, { paddingTop: Math.max(insets.top, 20) }]}>
+          <View style={[styles.portalHeader, { paddingTop: Platform.OS === 'android' ? 12 : Math.max(insets.top, 20) }]}>
              <Ionicons name="globe-outline" size={24} color="#10b981" />
              <Text style={styles.portalTitle}>Student Portal</Text>
              <TouchableOpacity style={styles.portalCloseBtn} onPress={() => setShowPortal(false)}>
@@ -405,12 +405,14 @@ export default function Index() {
                    var d = document.querySelector('#dd');
                    var m = document.querySelector('#mm');
                    var y = document.querySelector('#yyyy');
-                   if (u && d && m && y) {
+                   var s = document.querySelector('input[type="submit"]');
+                   if (u && d && m && y && s) {
                      u.value = '${profile.usn}';
                      d.value = '${day} ';
                      m.value = '${month}';
                      y.value = '${year}';
                      if (typeof putdate === 'function') putdate();
+                     s.click();
                    }
                  })();
                  true;
