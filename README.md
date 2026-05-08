@@ -1,6 +1,6 @@
-# BunkSafe v2.0.0 🚀
+# BunkSafe v2.0.1 🚀
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-2.0.1-blue?style=flat-square)
 ![Platform](https://img.shields.io/badge/platform-Android%20%7C%20iOS-lightgrey?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![Privacy](https://img.shields.io/badge/data-local%20only-success?style=flat-square)
