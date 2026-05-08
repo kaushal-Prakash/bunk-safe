@@ -10,7 +10,8 @@ import {
   TextInput,
   Platform,
   Keyboard,
-  Modal
+  Modal,
+  BackHandler
 } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import Animated, { 
@@ -64,7 +65,31 @@ export default function Index() {
   // Portal View State
   const [showPortal, setShowPortal] = useState(false);
   const portalWebViewRef = useRef<WebView>(null);
-  
+  const [portalCanGoBack, setPortalCanGoBack] = useState(false);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (showOnboarding) return false;
+      if (showPortal) {
+        if (portalCanGoBack) {
+          portalWebViewRef.current?.goBack();
+        } else {
+          setShowPortal(false);
+        }
+        return true;
+      }
+      
+      if (activeTab !== 'attendance') {
+        setActiveTab('attendance');
+        return true;
+      }
+      return false;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [showOnboarding, showPortal, portalCanGoBack, activeTab]);
+
   const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
@@ -351,6 +376,7 @@ export default function Index() {
             )}
             javaScriptEnabled={true}
             domStorageEnabled={true}
+            onNavigationStateChange={(navState) => setPortalCanGoBack(navState.canGoBack)}
             onLoadEnd={() => {
                if (!profile) return;
                // Parse DOB

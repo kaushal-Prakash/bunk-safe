@@ -41,7 +41,7 @@ export function CieTab({ subjects, onRefresh, refreshing = false }: Props) {
         const maxTotal = 100;
 
         // Dynamic marks array from scraper, with fallback
-        const components: { label: string; value: string; max: number }[] = subject.cie.marks || [
+        const baseComponents: { label: string; value: string; max: number }[] = subject.cie.marks || [
           { label: 'T1', value: subject.cie.t1 || '0', max: 25 },
           { label: 'T2', value: subject.cie.t2 || '0', max: 25 },
           { label: 'Q1', value: subject.cie.q1 || '0', max: 5 },
@@ -49,6 +49,14 @@ export function CieTab({ subjects, onRefresh, refreshing = false }: Props) {
           { label: 'IL1', value: subject.cie.il1 || '0', max: 5 },
           { label: 'IL2', value: subject.cie.il2 || '0', max: 5 },
         ];
+
+        const components = baseComponents.map(comp => {
+          const isQuiz = /^(qz|q|quiz)\s*\d*$/i.test(comp.label.trim());
+          return {
+            ...comp,
+            max: isQuiz ? 10 : comp.max
+          };
+        });
 
         const totalPct = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
         const accent = getAccentColor(totalPct);
