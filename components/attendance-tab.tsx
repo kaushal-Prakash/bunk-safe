@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, RefreshControl, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Dimensions, RefreshControl, TouchableOpacity, BackHandler } from 'react-native';
 import { Subject } from '@/hooks/use-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInRight, FadeInDown, FadeOutRight, FadeInLeft, FadeOutLeft } from 'react-native-reanimated';
@@ -123,6 +123,15 @@ function AttendanceDetailView({ subject, onBack }: { subject: Subject; onBack: (
   const totalClasses = presentDates.length + absentDates.length;
   const pct = parseInt(subject.attendance) || 0;
   const color = pct >= 75 ? '#10b981' : pct >= 65 ? '#f59e0b' : '#ef4444';
+
+  useEffect(() => {
+    const onBackPress = () => {
+      onBack();
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [onBack]);
 
   return (
     <Animated.View entering={FadeInRight} exiting={FadeOutRight} style={{ flex: 1 }}>
