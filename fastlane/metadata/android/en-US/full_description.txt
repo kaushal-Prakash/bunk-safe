@@ -1,0 +1,12 @@
+Bunk Safe is an open-source, privacy-first companion app designed specifically for students to effortlessly track their attendance and Continuous Internal Evaluation (CIE) marks. 
+
+Built with speed and local processing in mind, the app securely syncs with your college portal entirely in the background, ensuring your credentials and data never leave your device. 
+
+Key Features:
+- Real-time attendance tracking with visual safe/at-risk indicators.
+- Detailed class history showing exactly which sessions you attended or missed.
+- Comprehensive CIE marks breakdown with progression bars.
+- Secure, local-only scraping—no external servers or telemetry.
+- Beautiful, dark-themed, and responsive interface.
+
+Never miss a safe attendance threshold again with Bunk Safe!
