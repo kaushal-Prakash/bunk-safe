@@ -32,7 +32,18 @@ export const ScraperScripts = {
     return `
       (function() {
         const notify = (msg) => {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
+          try {
+            if (
+              window.ReactNativeWebView &&
+              typeof window.ReactNativeWebView.postMessage === 'function'
+            ) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
+            } else {
+              console.log('[Portal Inject]', msg);
+            }
+          } catch (e) {
+            console.log('[Portal Inject]', msg);
+          }
         };
 
         const setFieldValue = (el, value) => {
