@@ -180,7 +180,6 @@ export default function Index() {
         webViewRef.current?.injectJavaScript(
           ScraperScripts.login(profile!.usn, profile!.dob, profile!.fatherMobileLast4 || '')
         );
-        setSyncStatus('fetching_list');
       } else if (syncStatus === 'fetching_list') {
         webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
       }

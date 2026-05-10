@@ -38,9 +38,18 @@ export const ScraperScripts = {
         const setFieldValue = (el, value) => {
           if (!el) return;
           el.focus && el.focus();
-          el.value = value;
+          const proto = el.tagName === 'SELECT'
+            ? window.HTMLSelectElement && window.HTMLSelectElement.prototype
+            : window.HTMLInputElement && window.HTMLInputElement.prototype;
+          const valueSetter = proto && Object.getOwnPropertyDescriptor(proto, 'value') && Object.getOwnPropertyDescriptor(proto, 'value').set;
+          if (valueSetter) {
+            valueSetter.call(el, value);
+          } else {
+            el.value = value;
+          }
           el.dispatchEvent(new Event('input', { bubbles: true }));
           el.dispatchEvent(new Event('change', { bubbles: true }));
+          el.dispatchEvent(new Event('blur', { bubbles: true }));
           el.blur && el.blur();
         };
 
@@ -50,9 +59,23 @@ export const ScraperScripts = {
           for (const wanted of preferredValues) {
             const found = options.find((opt) => opt.value === wanted);
             if (found) {
+              selectEl.selectedIndex = found.index;
               setFieldValue(selectEl, wanted);
               return true;
             }
+          }
+          return false;
+        };
+
+        const submitForm = (btnOrField) => {
+          const form = btnOrField && btnOrField.form ? btnOrField.form : document.querySelector('form#login-form') || document.querySelector('form');
+          if (form && typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+            return true;
+          }
+          if (form && typeof form.submit === 'function') {
+            form.submit();
+            return true;
           }
           return false;
         };
@@ -114,7 +137,10 @@ export const ScraperScripts = {
             }
 
             notify('Scraper: Submitting verification form');
-            verificationSubmitBtn.click();
+            setTimeout(() => {
+              const submitted = submitForm(verificationSubmitBtn);
+              if (!submitted) verificationSubmitBtn.click();
+            }, 80);
             return;
           } else {
             const userField = document.querySelector('#username');
@@ -138,7 +164,10 @@ export const ScraperScripts = {
               if (typeof putdate === 'function') putdate();
               if (typeof submitLogin === 'function') submitLogin();
               notify('Scraper: Submitting DOB login form');
-              submitBtn.click();
+              setTimeout(() => {
+                const submitted = submitForm(submitBtn);
+                if (!submitted) submitBtn.click();
+              }, 80);
               return;
             }
           }
