@@ -125,8 +125,63 @@ export default function Index() {
 
   // --- SCRAPER ORCHESTRATION ---
 
+  const getSyncValidationError = useCallback((): string | null => {
+    if (!profile) return 'Profile not found. Please complete onboarding first.';
+
+    const usn = (profile.usn || '').trim();
+    if (!usn) return 'USN is required for portal login. Please update it in Settings.';
+
+    const dob = (profile.dob || '').trim();
+    if (!dob) return 'DOB is required for portal login. Please update it in Settings.';
+
+    if (!dob.includes('-')) {
+      return 'DOB format is invalid. Use DD-MM-YYYY or YYYY-MM-DD.';
+    }
+
+    const parts = dob.split('-');
+    if (parts.length !== 3) {
+      return 'DOB format is invalid. Use DD-MM-YYYY or YYYY-MM-DD.';
+    }
+
+    const isYearFirst = parts[0].length === 4;
+    const day = isYearFirst ? parts[2] : parts[0];
+    const month = parts[1];
+    const year = isYearFirst ? parts[0] : parts[2];
+
+    const dayNum = Number(day);
+    const monthNum = Number(month);
+    const yearNum = Number(year);
+
+    if (
+      !Number.isFinite(dayNum) ||
+      !Number.isFinite(monthNum) ||
+      !Number.isFinite(yearNum) ||
+      dayNum < 1 ||
+      dayNum > 31 ||
+      monthNum < 1 ||
+      monthNum > 12 ||
+      year.length !== 4
+    ) {
+      return 'DOB values are invalid. Please verify day, month, and year in Settings.';
+    }
+
+    const fatherLast4 = (profile.fatherMobileLast4 || '').replace(/\D/g, '');
+    if (fatherLast4.length !== 4) {
+      return 'Father mobile last 4 digits are required for the new portal verification step.';
+    }
+
+    return null;
+  }, [profile]);
+
   const startSync = useCallback(() => {
     if (!profile) return;
+    const validationError = getSyncValidationError();
+    if (validationError) {
+      setSyncError(validationError);
+      setSyncStatus('error');
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSyncError(null);
     setSyncStatus('logging_in');
@@ -138,7 +193,7 @@ export default function Index() {
       webViewRef.current?.reload();
     }, 100);
     resetWatchdog();
-  }, [profile]);
+  }, [profile, getSyncValidationError]);
 
   const onWebViewMessage = (event: WebViewMessageEvent) => {
     resetWatchdog();
