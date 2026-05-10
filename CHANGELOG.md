@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.0.2] - 2026-05-10
+
+### 🆕 Portal Login Compatibility
+* Added support for the new NIE portal verification step after DOB login.
+* Scraper now auto-detects both login variants:
+  * Username + DOB dropdown flow
+  * Verification type + 4-digit value flow
+* Added support for selecting **Father Mobile Last 4 Digits** and injecting/sending the 4-digit value reliably.
+
+### ✅ Validation & UX
+* Added pre-sync validation before scraping starts.
+* Sync now fails fast with clear user-facing messages when required values are missing/invalid (USN, DOB format, father mobile last 4 digits).
+* Updated onboarding and settings to collect/edit the father mobile last 4 digits used by the new portal flow.
+
+### 🛠️ Stability Fixes
+* Fixed hidden sync WebView state transition so scraping starts only after dashboard/login confirmation, preventing repeated "Not on dashboard page" retries.
+* Hardened value injection for portal forms:
+  * Native value setters
+  * Explicit select option selection
+  * Input/change/blur event dispatch
+  * Form-level submit fallback
+* Fixed top portal icon WebView injection by making logger bridge-safe when `window.ReactNativeWebView.postMessage` is unavailable.
+
 ## [2.0.1] - 2026-05-08
 
 ### 🐛 Bug Fixes
