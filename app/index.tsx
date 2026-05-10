@@ -381,35 +381,9 @@ export default function Index() {
             onNavigationStateChange={(navState) => setPortalCanGoBack(navState.canGoBack)}
             onLoadEnd={() => {
                if (!profile) return;
-               // Parse DOB
-               let day = '', month = '', year = '';
-               const dob = profile.dob;
-               if (dob.includes('-')) {
-                 const parts = dob.split('-');
-                 if (parts[0].length === 4) { [year, month, day] = parts; }
-                 else { [day, month, year] = parts; }
-               }
-               day = day.padStart(2, '0');
-               month = month.padStart(2, '0');
-
-               portalWebViewRef.current?.injectJavaScript(`
-                 (function() {
-                   var u = document.querySelector('#username');
-                   var d = document.querySelector('#dd');
-                   var m = document.querySelector('#mm');
-                   var y = document.querySelector('#yyyy');
-                   var s = document.querySelector('input[type="submit"]');
-                   if (u && d && m && y && s) {
-                     u.value = '${profile.usn}';
-                     d.value = '${day} ';
-                     m.value = '${month}';
-                     y.value = '${year}';
-                     if (typeof putdate === 'function') putdate();
-                     s.click();
-                   }
-                 })();
-                 true;
-               `);
+               portalWebViewRef.current?.injectJavaScript(
+                 ScraperScripts.login(profile.usn, profile.dob, profile.fatherMobileLast4 || '')
+               );
             }}
           />
         </View>
