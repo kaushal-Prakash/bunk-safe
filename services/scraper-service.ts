@@ -6,7 +6,7 @@ export const ScraperScripts = {
   /**
    * Automates the login form using USN and DOB.
    */
-  login: (usn: string, dob: string) => {
+  login: (usn: string, dob: string, fatherMobileLast4: string = '') => {
     // Handling different DOB formats (YYYY-MM-DD or DD-MM-YYYY)
     let day = '', month = '', year = '';
     
@@ -23,13 +23,41 @@ export const ScraperScripts = {
     day = day.padStart(2, '0');
     month = month.padStart(2, '0');
 
+    const safeUsn = usn.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeDay = day.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeMonth = month.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeYear = year.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const safeFatherLast4 = (fatherMobileLast4 || '').replace(/\D/g, '').slice(-4).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
     return `
       (function() {
         const notify = (msg) => {
           window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'LOG', data: msg }));
         };
 
-        notify('Scraper: Starting login for ${usn}');
+        const setFieldValue = (el, value) => {
+          if (!el) return;
+          el.focus && el.focus();
+          el.value = value;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          el.blur && el.blur();
+        };
+
+        const setSelectValue = (selectEl, preferredValues) => {
+          if (!selectEl || !preferredValues || !preferredValues.length) return false;
+          const options = Array.from(selectEl.options || []);
+          for (const wanted of preferredValues) {
+            const found = options.find((opt) => opt.value === wanted);
+            if (found) {
+              setFieldValue(selectEl, wanted);
+              return true;
+            }
+          }
+          return false;
+        };
+
+        notify('Scraper: Starting login for ${safeUsn}');
         let attempts = 0;
         
         let checkInterval = setInterval(() => {
@@ -44,27 +72,84 @@ export const ScraperScripts = {
              return;
           }
 
-          const userField = document.querySelector('#username');
-          const daySelect = document.querySelector('#dd');
-          const monthSelect = document.querySelector('#mm');
-          const yearSelect = document.querySelector('#yyyy');
-          const submitBtn = document.querySelector('input[type="submit"]');
+          const verificationSelect = document.querySelector('#id-type-select');
+          const verificationDigits = Array.from(document.querySelectorAll('.digit-input'));
+          const verificationSubmitBtn = document.querySelector('input[type="submit"]');
+          const enteredIdField = document.querySelector('#enteredid');
 
-          if (userField && daySelect && monthSelect && yearSelect && submitBtn) {
+          // New flow: verification page after OTP login
+          if (verificationSelect && verificationDigits.length >= 4 && verificationSubmitBtn) {
             clearInterval(checkInterval);
-            notify('Scraper: Found all form fields');
-            userField.value = "${usn}";
-            daySelect.value = "${day} "; // NIE Portal uses "DD " value
-            monthSelect.value = "${month}";
-            yearSelect.value = "${year}";
-            
-            if (typeof putdate === 'function') putdate();
-            notify('Scraper: Clicking submit button');
-            submitBtn.click();
-          } else if (attempts >= 10) {
+            notify('Scraper: Verification page detected');
+
+            // Prefer father mobile verification type, fallback to value "1"
+            const verificationTypeSet =
+              setSelectValue(verificationSelect, ['1']) ||
+              setSelectValue(
+                verificationSelect,
+                Array.from(verificationSelect.options || [])
+                  .filter((o) => /father/i.test((o.text || '') + ' ' + (o.innerText || '')))
+                  .map((o) => o.value)
+              );
+
+            if (!verificationTypeSet) {
+              notify('Scraper warning: Could not explicitly set verification type, continuing with current selection');
+            }
+
+            const digits = "${safeFatherLast4}";
+            if (digits.length !== 4) {
+              notify('Scraper ERROR: Father mobile last 4 digits missing/invalid');
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'ERROR',
+                data: 'Portal needs father mobile last 4 digits. Please save a valid 4-digit value and retry.'
+              }));
+              return;
+            }
+
+            verificationDigits.slice(0, 4).forEach((input, idx) => {
+              setFieldValue(input, digits[idx]);
+            });
+            if (enteredIdField) {
+              setFieldValue(enteredIdField, digits);
+            }
+
+            notify('Scraper: Submitting verification form');
+            verificationSubmitBtn.click();
+            return;
+          } else {
+            const userField = document.querySelector('#username');
+            const daySelect = document.querySelector('#dd');
+            const monthSelect = document.querySelector('#mm');
+            const yearSelect = document.querySelector('#yyyy');
+            const submitBtn = document.querySelector('input[type="submit"]');
+
+            if (userField && daySelect && monthSelect && yearSelect && submitBtn) {
+              clearInterval(checkInterval);
+              notify('Scraper: Found DOB login fields');
+              setFieldValue(userField, "${safeUsn}");
+
+              const daySet = setSelectValue(daySelect, ["${safeDay}", "${safeDay} ", "${safeDay}".trim()]);
+              if (!daySet) {
+                notify('Scraper warning: Could not set day from dropdown options');
+              }
+              setSelectValue(monthSelect, ["${safeMonth}"]);
+              setSelectValue(yearSelect, ["${safeYear}"]);
+
+              if (typeof putdate === 'function') putdate();
+              if (typeof submitLogin === 'function') submitLogin();
+              notify('Scraper: Submitting DOB login form');
+              submitBtn.click();
+              return;
+            }
+          }
+          
+          if (attempts >= 18) {
             clearInterval(checkInterval);
-            notify('Scraper ERROR: Could not find one or more form fields');
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ERROR', data: 'Login fields not found on portal.' }));
+            notify('Scraper ERROR: Login/verification timed out');
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'ERROR',
+              data: 'Login timed out while waiting for portal fields.'
+            }));
           }
         }, 800);
       })();

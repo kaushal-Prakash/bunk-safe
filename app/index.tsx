@@ -177,7 +177,9 @@ export default function Index() {
     // Inject scripts with minimal delay, relying on the scraper retry loops
     setTimeout(() => {
       if (syncStatus === 'logging_in') {
-        webViewRef.current?.injectJavaScript(ScraperScripts.login(profile!.usn, profile!.dob));
+        webViewRef.current?.injectJavaScript(
+          ScraperScripts.login(profile!.usn, profile!.dob, profile!.fatherMobileLast4 || '')
+        );
         setSyncStatus('fetching_list');
       } else if (syncStatus === 'fetching_list') {
         webViewRef.current?.injectJavaScript(ScraperScripts.scrapeSubjectList);
@@ -444,13 +446,15 @@ function Onboarding({ onComplete, saveProfile }: any) {
   const [name, setName] = useState('');
   const [usn, setUsn] = useState('');
   const [dob, setDob] = useState('');
+  const [fatherMobileLast4, setFatherMobileLast4] = useState('');
 
   const handleFinish = async () => {
-    if (!name || !usn || !dob) {
+    const fatherLast4 = fatherMobileLast4.replace(/\D/g, '').slice(-4);
+    if (!name || !usn || !dob || fatherLast4.length !== 4) {
       Alert.alert('Missing Info', 'Please fill all fields');
       return;
     }
-    await saveProfile({ name, usn, dob });
+    await saveProfile({ name, usn, dob, fatherMobileLast4: fatherLast4 });
     onComplete();
   };
 
@@ -518,8 +522,17 @@ function Onboarding({ onComplete, saveProfile }: any) {
                value={dob}
                onChangeText={setDob}
              />
+             <TextInput
+               placeholder="Father Mobile Last 4 Digits"
+               placeholderTextColor="#64748b"
+               style={styles.input}
+               value={fatherMobileLast4}
+               keyboardType="number-pad"
+               maxLength={4}
+               onChangeText={(t) => setFatherMobileLast4(t.replace(/\D/g, '').slice(0, 4))}
+             />
              <Text style={styles.onboardHint}>
-               Format required: DD-MM-YYYY or YYYY-MM-DD. 
+               DOB format: DD-MM-YYYY or YYYY-MM-DD. Father mobile: 4 digits.
              </Text>
              <TouchableOpacity style={styles.primaryBtn} onPress={handleFinish}>
                <Text style={styles.primaryBtnText}>Access Dashboard</Text>

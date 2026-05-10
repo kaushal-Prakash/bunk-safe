@@ -5,12 +5,9 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   TextInput, 
-  ScrollView, 
-  Alert,
-  Platform
+  ScrollView
 } from 'react-native';
 import { UserProfile } from '@/hooks/use-storage';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import packageJson from '../package.json';
 
@@ -27,7 +24,11 @@ export function SettingsTab({ profile, onUpdate, onClear }: Props) {
   const [formData, setFormData] = useState<UserProfile>(profile);
 
   const handleSave = async () => {
-    await onUpdate(formData);
+    const sanitized = (formData.fatherMobileLast4 || '').replace(/\D/g, '').slice(-4);
+    await onUpdate({
+      ...formData,
+      fatherMobileLast4: sanitized
+    });
     setEditing(false);
   };
 
@@ -64,6 +65,16 @@ export function SettingsTab({ profile, onUpdate, onClear }: Props) {
                   onChangeText={(t) => setFormData(p => ({ ...p, dob: t }))}
                 />
               </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Father Mobile Last 4 Digits</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  value={formData.fatherMobileLast4 || ''}
+                  onChangeText={(t) => setFormData(p => ({ ...p, fatherMobileLast4: t.replace(/\D/g, '').slice(0, 4) }))}
+                />
+              </View>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
                 <Text style={styles.btnText}>Save Changes</Text>
               </TouchableOpacity>
@@ -84,6 +95,10 @@ export function SettingsTab({ profile, onUpdate, onClear }: Props) {
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>DOB</Text>
                 <Text style={styles.infoValue}>{profile.dob}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Father Mobile Last 4</Text>
+                <Text style={styles.infoValue}>{profile.fatherMobileLast4 || 'Not set'}</Text>
               </View>
               <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(true)}>
                 <Ionicons name="create-outline" size={20} color="#3b82f6" />

@@ -39,6 +39,7 @@ export interface UserProfile {
   name: string;
   usn: string;
   dob: string;
+  fatherMobileLast4?: string;
   academicData?: AcademicData;
 }
 
